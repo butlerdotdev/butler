@@ -1,0 +1,40 @@
+Butler
+Copyright 2024-2025 Butler Labs LLC
+
+This product includes software developed at Butler Labs LLC
+(https://butlerlabs.dev/).
+
+---
+
+Third-Party Licenses
+
+Butler uses the following open source projects:
+
+Kubernetes
+Copyright The Kubernetes Authors
+Licensed under the Apache License, Version 2.0
+
+Cluster API
+Copyright The Kubernetes Authors
+Licensed under the Apache License, Version 2.0
+
+Kamaji
+Copyright Clastix Labs
+Licensed under the Apache License, Version 2.0
+
+Talos Linux
+Copyright Sidero Labs
+Licensed under the Mozilla Public License 2.0
+
+Cilium
+Copyright The Cilium Authors
+Licensed under the Apache License, Version 2.0
+
+Helm
+Copyright The Helm Authors
+Licensed under the Apache License, Version 2.0
+
+---
+
+For the full text of licenses, see the LICENSE files in the respective
+project repositories.
