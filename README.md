@@ -375,29 +375,107 @@ providerConfig:
 butleradm bootstrap --config bootstrap-harvester.yaml
 ```
 
-### Create Your First Tenant Cluster
+### Access Butler Console
+
+After bootstrap completes, your credentials are displayed:
+```
+Cluster credentials saved to:
+  Kubeconfig:   ~/.butler/<cluster-name>-kubeconfig
+  Talosconfig:  ~/.butler/<cluster-name>-talosconfig
+
+Butler Console:
+  URL: http://butler.example.local
+  Username: admin
+  Password: Run the following command to retrieve:
+    kubectl get secret butler-console-admin -n butler-system -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
+
+Set your kubeconfig and retrieve the admin password:
+```bash
+export KUBECONFIG=~/.butler/<cluster-name>-kubeconfig
+kubectl get secret butler-console-admin -n butler-system -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
+
+Add the console hostname to your local hosts file (use the Traefik LoadBalancer IP from your MetalLB pool):
+
+<details>
+<summary><strong>macOS / Linux</strong></summary>
 
 ```bash
-# Using CLI
-butlerctl cluster create my-app --workers 3 --version 1.30.0
+echo "10.40.0.210 butler.example.local" | sudo tee -a /etc/hosts
+```
 
-# Or using kubectl
-cat <<EOF | kubectl apply -f -
+</details>
+
+<details>
+<summary><strong>Windows (Run as Administrator)</strong></summary>
+
+```powershell
+Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "10.40.0.210 butler.example.local"
+```
+
+</details>
+
+### Create Your First Tenant Cluster
+
+You can create tenant clusters via the Butler Console, CLI, or directly with kubectl:
+
+<details>
+<summary><strong>Butler Console</strong></summary>
+
+1. Navigate to your Butler Console URL (e.g., `http://butler.example.local`)
+2. Log in with the admin credentials
+3. Click **Create Cluster**
+4. Fill in the cluster details and submit
+
+</details>
+
+<details>
+<summary><strong>CLI</strong></summary>
+
+```bash
+butlerctl cluster create my-app \
+  --workers 3 \
+  --kubernetes-version 1.30.2 \
+  --worker-cpu 4 \
+  --worker-memory 8Gi \
+  --worker-disk 50Gi
+```
+
+</details>
+
+<details>
+<summary><strong>kubectl (TenantCluster CR)</strong></summary>
+
+```yaml
 apiVersion: butler.butlerlabs.dev/v1alpha1
 kind: TenantCluster
 metadata:
   name: my-app
   namespace: default
 spec:
-  kubernetesVersion: "1.30.0"
+  kubernetesVersion: "1.30.2"
   controlPlane:
     type: hosted
   workers:
     replicas: 3
-EOF
+    machineTemplate:
+      cpu: 4
+      memory: 8Gi
+      disk: 50Gi
+```
 
-# Get kubeconfig
+```bash
+kubectl apply -f tenant-cluster.yaml
+```
+
+</details>
+
+```bash
+# Get kubeconfig for your new cluster
 butlerctl cluster kubeconfig my-app > my-app-kubeconfig.yaml
+export KUBECONFIG=my-app-kubeconfig.yaml
+kubectl get nodes
 ```
 
 **[Full Getting Started Guide](docs/getting-started/)**
