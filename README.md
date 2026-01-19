@@ -161,7 +161,7 @@ brew install butlerdotdev/tap/butler
 <summary><strong>Windows (Chocolatey)</strong></summary>
 
 ```bash
-choco install butler
+choco install butler-cli --version=0.1.2
 ```
 
 </details>
