@@ -149,17 +149,34 @@ flowchart TB
 
 ### Install CLI
 
+<details>
+<summary><strong>macOS / Linux (Homebrew)</strong></summary>
+
 ```bash
-# macOS / Linux
-brew install --cask butlerdotdev/tap/butler
+brew install butlerdotdev/tap/butler
+```
 
-# Windows
+</details>
+
+<details>
+<summary><strong>Windows (Chocolatey)</strong></summary>
+
+```bash
 choco install butler
+```
 
-# Or download directly from GitHub Releases
+</details>
+
+<details>
+<summary><strong>Direct Download</strong></summary>
+
+```bash
 VERSION=$(curl -s https://api.github.com/repos/butlerdotdev/butler-cli/releases/latest | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
 curl -sL "https://github.com/butlerdotdev/butler-cli/releases/download/v${VERSION}/butler_${VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/').tar.gz" | tar xz
+sudo mv butleradm butlerctl /usr/local/bin/
 ```
+
+</details>
 
 ### Bootstrap Management Cluster
 
