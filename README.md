@@ -469,7 +469,7 @@ Copyright 2025-2026 Butler Labs LLC.
 ---
 
 <p align="center">
-  <img src="assets/gopher/butlergopher.png" alt="Butler Gopher" width="100"/>
+  <img src="assets/logo/butlerlabs.png" alt="Butler Gopher" width="100"/>
   <br/>
   <em>Built by <a href="https://butlerlabs.dev">Butler Labs</a></em>
 </p>
