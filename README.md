@@ -1,11 +1,11 @@
 # Butler
 
 <p align="center">
-  <img src="assets/logo/butler-logo.png" alt="Butler Logo" width="200"/>
+  <img src="assets/gopher/butlergopher.png" alt="Butler Logo" width="200"/>
 </p>
 
 <p align="center">
-  <strong>Kubernetes-native multi-cluster management platform</strong>
+  <strong>Kubernetes as a Service multi-cluster management platform</strong>
 </p>
 
 <p align="center">
