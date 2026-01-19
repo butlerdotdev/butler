@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/butlerdotdev/butler-controller/releases"><img src="https://img.shields.io/github/v/release/butlerdotdev/butler-controller?label=controller" alt="Controller Release"></a>
   <a href="https://github.com/butlerdotdev/butler-cli/releases"><img src="https://img.shields.io/github/v/release/butlerdotdev/butler-cli?label=cli" alt="CLI Release"></a>
   <a href="https://github.com/butlerdotdev/butler/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
   <a href="https://github.com/butlerdotdev/butler/stargazers"><img src="https://img.shields.io/github/stars/butlerdotdev/butler" alt="GitHub Stars"></a>
@@ -564,7 +563,7 @@ Copyright 2025-2026 Butler Labs LLC.
 ---
 
 <p align="center">
-  <img src="assets/logo/butlerlabs.png" alt="Butler Gopher" width="100"/>
+  <img src="assets/logo/butlerlabs.png" alt="Butler Labs" width="300"/>
   <br/>
   <em>Built by <a href="https://butlerlabs.dev">Butler Labs</a></em>
 </p>
