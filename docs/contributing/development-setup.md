@@ -304,7 +304,17 @@ dlv test ./internal/controller/tenantcluster/
 
 ### Logging
 
-Controllers use zap logging. Increase verbosity:
+Controllers use structured logging via controller-runtime's log package. In code, use:
+
+```go
+import logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+log := logf.FromContext(ctx)
+log.Info("Creating resource", "name", obj.Name)
+log.Error(err, "Failed to create resource")
+```
+
+Increase verbosity at runtime:
 
 ```bash
 # Run with debug logging
