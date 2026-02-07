@@ -47,7 +47,7 @@ Butler is an open-source Kubernetes as a Service multi-cluster management platfo
 | Feature | Butler | Rancher | Managed K8s (EKS/GKE/AKS) |
 |---------|--------|---------|---------------------------|
 | Architecture | CRDs + Operators | Custom API + Database | Proprietary |
-| Control Planes | Hosted by default (Kamaji) | Dedicated VMs | Managed |
+| Control Planes | Hosted by default (Steward) | Dedicated VMs | Managed |
 | On-Premises | Yes (first-class) | Yes | No (cloud-only) |
 | GitOps Native | Yes (built-in) | Partial (add-on) | Partial (add-on) |
 | Vendor Lock-in | None | Low | High |
@@ -57,11 +57,11 @@ Butler is an open-source Kubernetes as a Service multi-cluster management platfo
 ## Key Features
 
 - **Kubernetes-Native**: CRDs and operators, same resources whether using CLI, Console, or kubectl
-- **Hosted Control Planes**: Lightweight tenant clusters via [Kamaji](https://kamaji.clastix.io/), control plane pods instead of dedicated VMs
+- **Hosted Control Planes**: Lightweight tenant clusters via [Steward](https://github.com/butlerdotdev/steward), control plane pods instead of dedicated VMs
 - **Multi-Provider**: Harvester HCI, Nutanix AHV, Proxmox VE (planned), AWS/Azure/GCP (roadmap)
 - **Multi-Tenant**: Team-based isolation with role-based access (admin/operator/viewer)
 - **Addon Ecosystem**: Cilium, MetalLB, Longhorn, cert-manager, Traefik, and more
-- **GitOps-First**: Native Flux integration, ArgoCD support planned
+- **GitOps-First**: Native Flux and ArgoCD integration
 - **Web Console**: Real-time cluster management with WebSocket updates and in-browser terminal
 - **Single-Node Support**: Edge deployments and development environments
 
@@ -132,7 +132,7 @@ flowchart TB
 
 1. **Bootstrap**: `butleradm bootstrap` creates a management cluster on your infrastructure using a temporary KIND cluster for orchestration
 2. **Provision**: Create `TenantCluster` CRs via CLI, Console, or GitOps. butler-controller reconciles them into CAPI resources
-3. **Host**: Kamaji runs tenant control planes as pods in the management cluster (no dedicated VMs needed)
+3. **Host**: Steward runs tenant control planes as pods in the management cluster (no dedicated VMs needed)
 4. **Connect**: Workers join via CAPI providers (Harvester/Nutanix/etc.)
 5. **Extend**: Install addons (CNI, storage, ingress) automatically or on-demand
 
@@ -435,10 +435,10 @@ You can create tenant clusters via the Butler Console, CLI, or directly with kub
 ```bash
 butlerctl cluster create my-app \
   --workers 3 \
-  --kubernetes-version 1.30.2 \
-  --worker-cpu 4 \
-  --worker-memory 8Gi \
-  --worker-disk 50Gi
+  --k8s-version v1.30.2 \
+  --cpu 4 \
+  --memory 8Gi \
+  --disk 50Gi
 ```
 
 </details>
@@ -453,15 +453,15 @@ metadata:
   name: my-app
   namespace: default
 spec:
-  kubernetesVersion: "1.30.2"
+  kubernetesVersion: "v1.30.2"
   controlPlane:
-    type: hosted
+    replicas: 1
   workers:
     replicas: 3
     machineTemplate:
       cpu: 4
       memory: 8Gi
-      disk: 50Gi
+      diskSize: 50Gi
 ```
 
 ```bash

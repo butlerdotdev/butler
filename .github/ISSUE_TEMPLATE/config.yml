@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Butler Discussions
+    url: https://github.com/butlerdotdev/butler/discussions
+    about: Ask questions and discuss Butler
+  - name: Component-Specific Issues
+    url: https://github.com/butlerdotdev/butler/blob/main/COMPONENTS.md
+    about: For bugs in specific components, open issues in the relevant repository

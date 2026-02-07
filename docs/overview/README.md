@@ -73,7 +73,7 @@ quadrantChart
 The central Kubernetes cluster that runs Butler controllers and orchestrates tenant clusters. Contains:
 
 - Butler controllers (bootstrap, controller)
-- Kamaji (hosted control planes)
+- Steward (hosted control planes)
 - Cluster API (infrastructure provisioning)
 - Console and supporting services
 
@@ -81,12 +81,12 @@ The central Kubernetes cluster that runs Butler controllers and orchestrates ten
 
 A Kubernetes cluster provisioned and managed by Butler for running workloads. Tenant clusters can be:
 
-- **Hosted Control Plane**: Control plane runs as pods in the management cluster (Kamaji)
+- **Hosted Control Plane**: Control plane runs as pods in the management cluster (Steward)
 - **Standalone**: Dedicated control plane VMs (traditional)
 
 ### Hosted Control Planes
 
-Butler uses [Kamaji](https://kamaji.clastix.io/) to run tenant control planes as pods rather than dedicated VMs. Benefits:
+Butler uses [Steward](https://github.com/butlerdotdev/steward) to run tenant control planes as pods rather than dedicated VMs. Benefits:
 
 - Lower resource consumption (no 3 control plane VMs per cluster)
 - Faster provisioning (seconds vs. minutes)
@@ -129,17 +129,17 @@ sequenceDiagram
     participant API as K8s API
     participant Controller as butler-controller
     participant CAPI as Cluster API
-    participant Kamaji
+    participant Steward
     participant Provider as Infrastructure
     
     User->>CLI: butlerctl cluster create my-cluster
     CLI->>API: Create TenantCluster CR
     API->>Controller: Watch event
-    Controller->>Kamaji: Create TenantControlPlane
+    Controller->>Steward: Create TenantControlPlane
     Controller->>CAPI: Create Cluster, MachineDeployment
     CAPI->>Provider: Provision VMs
     Provider-->>CAPI: VMs ready
-    Kamaji-->>Controller: Control plane ready
+    Steward-->>Controller: Control plane ready
     Controller->>Controller: Install addons
     Controller->>API: Update status: Running
     CLI-->>User: Cluster ready!
@@ -149,7 +149,7 @@ sequenceDiagram
 
 1. **Request**: User creates a `TenantCluster` CR via CLI, Console, or GitOps
 2. **Reconcile**: butler-controller picks up the CR and starts reconciliation
-3. **Control Plane**: Kamaji creates hosted control plane pods
+3. **Control Plane**: Steward creates hosted control plane pods
 4. **Infrastructure**: Cluster API provisions worker VMs via the appropriate provider
 5. **Bootstrap**: Workers join the cluster using kubeadm
 6. **Addons**: Controller installs CNI, storage, and other addons
