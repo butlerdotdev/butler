@@ -1,0 +1,240 @@
+# ecosystem.yaml
+# Machine-readable component registry for Butler ecosystem
+# Used by tooling, automation, and documentation generation
+apiVersion: butler.butlerlabs.dev/v1
+kind: Ecosystem
+metadata:
+  name: butler
+  version: "2025-01"
+  lastUpdated: "2025-01-18"
+
+spec:
+  organization: butlerdotdev
+  domain: butlerlabs.dev
+  license: Apache-2.0
+  
+  components:
+    core:
+      - name: butler-api
+        description: Shared CRD type definitions for all Butler resources
+        repository: https://github.com/butlerdotdev/butler-api
+        type: library
+        language: go
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        artifacts:
+          - type: go-module
+            path: github.com/butlerdotdev/butler-api
+        crds:
+          - ClusterBootstrap
+          - MachineRequest
+          - ProviderConfig
+          - ButlerConfig
+          - Team
+          - User
+          - TenantCluster
+          - TenantAddon
+          - ManagementAddon
+          - AddonDefinition
+          - IdentityProvider
+        
+      - name: butler-controller
+        description: Tenant cluster lifecycle and addon management controller
+        repository: https://github.com/butlerdotdev/butler-controller
+        type: controller
+        language: go
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-controller
+          - type: helm
+            registry: oci://ghcr.io/butlerdotdev/charts/butler-controller
+        reconciles:
+          - TenantCluster
+          - Team
+          - ManagementAddon
+          - TenantAddon
+        
+      - name: butler-bootstrap
+        description: Management cluster bootstrap controller using KIND orchestration
+        repository: https://github.com/butlerdotdev/butler-bootstrap
+        type: controller
+        language: go
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-bootstrap
+          - type: helm
+            registry: oci://ghcr.io/butlerdotdev/charts/butler-bootstrap
+        reconciles:
+          - ClusterBootstrap
+          - MachineRequest
+
+      - name: butler-cli
+        description: CLI tools for platform operators (butleradm) and users (butlerctl)
+        repository: https://github.com/butlerdotdev/butler-cli
+        type: cli
+        language: go
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: binary
+            platforms:
+              - linux-amd64
+              - linux-arm64
+              - darwin-amd64
+              - darwin-arm64
+              - windows-amd64
+          - type: homebrew
+            tap: butlerdotdev/homebrew-tap
+        binaries:
+          - butleradm
+          - butlerctl
+
+      - name: butler-console
+        description: Web UI frontend for cluster and addon management
+        repository: https://github.com/butlerdotdev/butler-console
+        type: frontend
+        language: typescript
+        framework: react
+        status: beta
+        maintainers:
+          - "@console-maintainers"
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-console
+
+      - name: butler-server
+        description: Backend API server for Butler Console
+        repository: https://github.com/butlerdotdev/butler-server
+        type: backend
+        language: go
+        framework: chi
+        status: beta
+        maintainers:
+          - "@console-maintainers"
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-server
+        features:
+          - REST API
+          - WebSocket real-time updates
+          - PTY terminal sessions
+          - OIDC authentication
+
+      - name: butler-charts
+        description: Helm charts for all Butler components
+        repository: https://github.com/butlerdotdev/butler-charts
+        type: charts
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        artifacts:
+          - type: helm-repository
+            registry: oci://ghcr.io/butlerdotdev/charts
+        charts:
+          - butler-crds
+          - butler-controller
+          - butler-bootstrap
+          - butler-console
+          - butler-addons
+          - butler-provider-harvester
+          - butler-provider-nutanix
+
+    providers:
+      - name: butler-provider-harvester
+        description: Harvester HCI infrastructure provider for VM provisioning
+        repository: https://github.com/butlerdotdev/butler-provider-harvester
+        type: provider
+        language: go
+        status: stable
+        maintainers:
+          - "@provider-maintainers"
+        infrastructure: harvester
+        capiProvider: kubevirt
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-provider-harvester
+          - type: helm
+            registry: oci://ghcr.io/butlerdotdev/charts/butler-provider-harvester
+
+      - name: butler-provider-nutanix
+        description: Nutanix AHV infrastructure provider for VM provisioning
+        repository: https://github.com/butlerdotdev/butler-provider-nutanix
+        type: provider
+        language: go
+        status: stable
+        maintainers:
+          - "@provider-maintainers"
+        infrastructure: nutanix
+        capiProvider: capx
+        dependencies:
+          - butler-api
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/butler-provider-nutanix
+          - type: helm
+            registry: oci://ghcr.io/butlerdotdev/charts/butler-provider-nutanix
+
+      - name: butler-provider-proxmox
+        description: Proxmox VE infrastructure provider for VM provisioning
+        repository: https://github.com/butlerdotdev/butler-provider-proxmox
+        type: provider
+        language: go
+        status: planned
+        maintainers:
+          - "@provider-maintainers"
+        infrastructure: proxmox
+
+    distribution:
+      - name: homebrew-tap
+        description: Homebrew formulae for Butler CLI tools
+        repository: https://github.com/butlerdotdev/homebrew-tap
+        type: package-manager
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+
+  dependencyGraph:
+    butler-controller:
+      - butler-api
+    butler-bootstrap:
+      - butler-api
+    butler-cli:
+      - butler-api
+    butler-server:
+      - butler-api
+    butler-provider-harvester:
+      - butler-api
+    butler-provider-nutanix:
+      - butler-api
+
+  techStack:
+    nodeOS:
+      management: talos-linux
+      tenant: rocky-linux-9
+    controlPlanes: kamaji
+    clusterLifecycle: cluster-api
+    cni: cilium
+    storage: longhorn
+    loadBalancer: metallb
+    ingress: traefik
+    certificates: cert-manager
+    gitops: fluxcd
+    containerRegistry: ghcr

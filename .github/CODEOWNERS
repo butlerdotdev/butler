@@ -1,0 +1,29 @@
+# Butler CODEOWNERS
+# These owners will be requested for review when changes are made to these areas.
+
+# Default owners for everything
+* @butlerdotdev/core-maintainers
+
+# Documentation
+/docs/ @butlerdotdev/core-maintainers
+/README.md @butlerdotdev/core-maintainers
+/COMPONENTS.md @butlerdotdev/core-maintainers
+
+# Governance
+/governance/ @butlerdotdev/core-maintainers
+/CONTRIBUTING.md @butlerdotdev/core-maintainers
+/CODE_OF_CONDUCT.md @butlerdotdev/core-maintainers
+/MAINTAINERS.md @butlerdotdev/core-maintainers
+/SECURITY.md @butlerdotdev/core-maintainers
+
+# Design documents
+/design/ @butlerdotdev/core-maintainers
+
+# Release coordination
+/releases/ @butlerdotdev/core-maintainers
+
+# Community
+/community/ @butlerdotdev/core-maintainers
+
+# GitHub configuration
+/.github/ @butlerdotdev/core-maintainers
