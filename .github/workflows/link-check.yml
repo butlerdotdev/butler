@@ -30,6 +30,15 @@ jobs:
             --no-progress
             --exclude-mail
             --exclude "^https://github.com/butlerdotdev/butler-provider-proxmox"
+            --exclude "^https://github.com/butlerdotdev/butler-controller"
+            --exclude "^https://github.com/butlerdotdev/butler-provider-nutanix"
+            --exclude "^https://github.com/butlerdotdev/butler/discussions"
+            --exclude "^https://github.com/butlerdotdev/butler/tree/main/design/proposals"
+            --exclude "^https://opendocs.nutanix.com/capx/"
+            --exclude "networking.md$"
+            --exclude "security-model.md$"
+            --exclude "/presentations$"
+            --exclude "/link$"
             './**/*.md'
           fail: true
         env:
