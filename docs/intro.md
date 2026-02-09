@@ -111,9 +111,9 @@ kubectl apply -f tenant-cluster.yaml
 
 ## Documentation
 
-- [Bootstrap Guide](https://github.com/butlerdotdev/butler-cli/blob/main/docs/bootstrap.md)
-- [Provider Configuration](https://github.com/butlerdotdev/butler-api/blob/main/docs/providers.md)
-- [Addon Catalog](https://github.com/butlerdotdev/butler-controller/blob/main/docs/addons.md)
+- [Getting Started](./getting-started/)
+- [Provider Guides](./providers/)
+- [Architecture](./architecture/)
 
 ## Project Status
 
