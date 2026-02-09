@@ -2,7 +2,7 @@
 
 Kubernetes-native multi-cluster management platform.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../LICENSE)
 
 ## Overview
 
@@ -22,7 +22,7 @@ Butler provisions and manages Kubernetes clusters across heterogeneous infrastru
 ```mermaid
 graph TB
     subgraph mgmt["Management Cluster"]
-        kamaji["Hosted Control Planes"]
+        steward["Hosted Control Planes (Steward)"]
         capi["Cluster API<br/>Machine Lifecycle"]
         ctrl["Butler Controller<br/>TenantCluster CRD"]
         prov["Provider Controllers<br/>Harvester / Nutanix / Proxmox"]
@@ -111,9 +111,9 @@ kubectl apply -f tenant-cluster.yaml
 
 ## Documentation
 
-- [Bootstrap Guide](https://github.com/butlerdotdev/butler-cli/blob/main/docs/bootstrap.md)
-- [Provider Configuration](https://github.com/butlerdotdev/butler-api/blob/main/docs/providers.md)
-- [Addon Catalog](https://github.com/butlerdotdev/butler-controller/blob/main/docs/addons.md)
+- [Getting Started](./getting-started/)
+- [Provider Guides](./providers/)
+- [Architecture](./architecture/)
 
 ## Project Status
 
@@ -131,11 +131,11 @@ Butler is under active development. Current status:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](../LICENSE) for details.
 
 ## Acknowledgments
 

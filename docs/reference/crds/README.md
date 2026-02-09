@@ -3,8 +3,6 @@ title: CRD Reference
 sidebar_position: 1
 ---
 
-# Custom Resource Definitions
-
 Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under the `butler.butlerlabs.dev` API group.
 
 ## API Groups

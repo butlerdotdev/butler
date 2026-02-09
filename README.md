@@ -10,7 +10,10 @@
 
 <p align="center">
   <a href="https://github.com/butlerdotdev/butler-cli/releases"><img src="https://img.shields.io/github/v/release/butlerdotdev/butler-cli?label=cli" alt="CLI Release"></a>
+  <a href="https://github.com/butlerdotdev/butler-controller/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/butlerdotdev/butler-controller/ci.yaml?branch=main&label=build" alt="Build Status"></a>
+  <a href="https://goreportcard.com/report/github.com/butlerdotdev/butler-controller"><img src="https://goreportcard.com/badge/github.com/butlerdotdev/butler-controller" alt="Go Report Card"></a>
   <a href="https://github.com/butlerdotdev/butler/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
+  <a href="https://discord.gg/cAzWG9qz3K"><img src="https://img.shields.io/badge/Discord-Join%20us-7289da?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://github.com/butlerdotdev/butler/stargazers"><img src="https://img.shields.io/github/stars/butlerdotdev/butler" alt="GitHub Stars"></a>
 </p>
 
@@ -64,6 +67,46 @@ Butler is an open-source Kubernetes as a Service multi-cluster management platfo
 - **GitOps-First**: Native Flux and ArgoCD integration
 - **Web Console**: Real-time cluster management with WebSocket updates and in-browser terminal
 - **Single-Node Support**: Edge deployments and development environments
+
+---
+
+## Supported Infrastructure
+
+| Provider | Type | Status | Kubernetes Versions |
+|----------|------|--------|---------------------|
+| **Harvester HCI** | On-Premises | Stable | 1.28 - 1.30 |
+| **Nutanix AHV** | On-Premises | Stable | 1.28 - 1.30 |
+| **Proxmox VE** | On-Premises | Planned (Q2 2025) | — |
+| **VMware vSphere** | On-Premises | Roadmap | — |
+| **AWS** | Cloud | Roadmap | — |
+| **Azure** | Cloud | Roadmap | — |
+| **GCP** | Cloud | Roadmap | — |
+
+See [Provider Guides](docs/providers/) for detailed setup instructions.
+
+---
+
+## Project Status
+
+Butler is in **active development**. Current API version is `v1alpha1`.
+
+### Stability Matrix
+
+| Component | API Stability | Production Ready | Notes |
+|-----------|--------------|------------------|-------|
+| TenantCluster CRD | Alpha | Yes (with caveats) | API may change in minor versions |
+| Team CRD | Alpha | Yes | Multi-tenancy fully functional |
+| ProviderConfig CRD | Alpha | Yes | Provider-specific fields stable |
+| butleradm bootstrap | Stable | Yes | Bootstrap workflow proven |
+| butlerctl | Beta | Yes | Core commands stable |
+| Butler Console | Beta | No | UI under active development |
+| Harvester Provider | Stable | Yes | Production deployments exist |
+| Nutanix Provider | Stable | Yes | Production deployments exist |
+
+**Stability Definitions:**
+- **Stable**: Breaking changes require major version bump with migration guide
+- **Beta**: Breaking changes may occur in minor versions with deprecation notice
+- **Alpha**: Breaking changes expected; plan for upgrade paths
 
 ---
 
@@ -551,6 +594,35 @@ We welcome contributions! Butler is built in the open and follows CNCF-aligned g
 - **Discord**: [discord community](https://discord.gg/cAzWG9qz3K)
 - **Issue Tracker**: Component-specific issues in each repo; cross-cutting issues here
 - **Adopters**: [See who's using Butler](community/adopters.md)
+
+---
+
+## Security
+
+For security concerns, please review our [Security Policy](SECURITY.md).
+
+To report vulnerabilities, please follow the responsible disclosure process outlined in our security policy. **Do not create public issues for security vulnerabilities.**
+
+---
+
+## Acknowledgments
+
+Butler is built on the shoulders of excellent open-source projects:
+
+**CNCF Projects:**
+- [Kubernetes](https://kubernetes.io/) — Container orchestration platform
+- [Cluster API](https://cluster-api.sigs.k8s.io/) — Declarative cluster lifecycle management
+- [Cilium](https://cilium.io/) — eBPF-based networking, security, and observability
+- [Flux](https://fluxcd.io/) — GitOps toolkit for Kubernetes
+- [Longhorn](https://longhorn.io/) — Cloud-native distributed storage
+
+**Infrastructure:**
+- [Talos Linux](https://www.talos.dev/) — Secure, immutable Kubernetes OS
+- [Harvester](https://harvesterhci.io/) — Open-source HCI solution
+- [MetalLB](https://metallb.universe.tf/) — Bare-metal load balancer
+
+**Hosted Control Planes:**
+Butler's hosted control plane functionality is powered by [Steward](https://github.com/butlerdotdev/steward), our community-governed fork of Kamaji.
 
 ---
 

@@ -229,7 +229,7 @@ spec:
     nodeOS:
       management: talos-linux
       tenant: rocky-linux-9
-    controlPlanes: kamaji
+    controlPlanes: steward
     clusterLifecycle: cluster-api
     cni: cilium
     storage: longhorn

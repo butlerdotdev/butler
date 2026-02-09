@@ -4,8 +4,6 @@ description: Guide for contributing new infrastructure providers to Butler
 sidebar_position: 1
 ---
 
-# Butler Bootstrap Provider Contribution Guide
-
 ## Adding a New Provider (e.g., Proxmox)
 
 This guide defines the exact architectural patterns, repositories, and processes required to add a new bootstrap provider to Butler. Follow these instructions precisely to ensure your contribution is consistent with existing patterns, safe for existing users, reviewable, and production-quality.
@@ -332,19 +330,19 @@ IMG ?= ghcr.io/butlerdotdev/butler-provider-proxmox:latest
 
 .PHONY: build
 build:
-	CGO_ENABLED=$(CGO_ENABLED) go build -o bin/manager cmd/main.go
+    CGO_ENABLED=$(CGO_ENABLED) go build -o bin/manager cmd/main.go
 
 .PHONY: docker-build
 docker-build:
-	docker build -t $(IMG) .
+    docker build -t $(IMG) .
 
 .PHONY: docker-push
 docker-push:
-	docker push $(IMG)
+    docker push $(IMG)
 
 .PHONY: test
 test:
-	go test ./... -coverprofile cover.out
+    go test ./... -coverprofile cover.out
 ```
 
 ### 2.4 butler-charts (Helm Charts Repository)
@@ -1518,11 +1516,11 @@ stringData:
 
 ## Troubleshooting
 
-See [troubleshooting guide](docs/troubleshooting.md).
+See troubleshooting guide in this repository.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See CONTRIBUTING.md in this repository.
 
 ## License
 

@@ -3,8 +3,6 @@ title: butleradm
 sidebar_position: 3
 ---
 
-# butleradm
-
 `butleradm` is the CLI for platform administrators to manage the Butler platform itself.
 
 ## Synopsis

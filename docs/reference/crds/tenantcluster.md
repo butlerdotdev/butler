@@ -3,8 +3,6 @@ title: TenantCluster
 sidebar_position: 2
 ---
 
-# TenantCluster
-
 A TenantCluster represents a Kubernetes cluster managed by Butler for running tenant workloads.
 
 ## API Version

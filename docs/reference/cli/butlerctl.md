@@ -3,8 +3,6 @@ title: butlerctl
 sidebar_position: 2
 ---
 
-# butlerctl
-
 `butlerctl` is the CLI for developers and platform users to manage tenant clusters.
 
 ## Synopsis

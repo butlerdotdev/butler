@@ -3,8 +3,6 @@ title: Troubleshooting
 sidebar_position: 99
 ---
 
-# Troubleshooting
-
 Common issues and how to resolve them.
 
 ## Diagnostic Commands
@@ -134,7 +132,7 @@ kubectl get datastore -A
 3. **Resource constraints**
    - Ensure management cluster has capacity for control plane pods
 
-### Cluster Stuck in "Provisioning"
+### Workers Not Joining Cluster
 
 **Symptoms:**
 - Control plane is ready
