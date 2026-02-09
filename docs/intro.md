@@ -22,7 +22,7 @@ Butler provisions and manages Kubernetes clusters across heterogeneous infrastru
 ```mermaid
 graph TB
     subgraph mgmt["Management Cluster"]
-        kamaji["Hosted Control Planes"]
+        steward["Hosted Control Planes (Steward)"]
         capi["Cluster API<br/>Machine Lifecycle"]
         ctrl["Butler Controller<br/>TenantCluster CRD"]
         prov["Provider Controllers<br/>Harvester / Nutanix / Proxmox"]
