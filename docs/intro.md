@@ -2,7 +2,7 @@
 
 Kubernetes-native multi-cluster management platform.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../LICENSE)
 
 ## Overview
 
@@ -131,11 +131,11 @@ Butler is under active development. Current status:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](../LICENSE) for details.
 
 ## Acknowledgments
 

@@ -3,8 +3,6 @@ title: CLI Reference
 sidebar_position: 1
 ---
 
-# Command-Line Interface
-
 Butler provides two CLI tools for different personas:
 
 ## Overview
