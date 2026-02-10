@@ -68,7 +68,16 @@ sudo mv butleradm butlerctl /usr/local/bin/
 ### Windows (Chocolatey)
 
 ```powershell
-choco install butler
+choco install butler-cli
+```
+
+### Windows (Direct Download)
+
+```powershell
+$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+Invoke-WebRequest -Uri "https://github.com/butlerdotdev/butler-cli/releases/latest/download/butler_windows_${arch}.tar.gz" -OutFile butler.tar.gz
+tar xzf butler.tar.gz
+Move-Item butleradm.exe, butlerctl.exe -Destination "$env:LOCALAPPDATA\Microsoft\WindowsApps\"
 ```
 
 ### Verify Installation
