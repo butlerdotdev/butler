@@ -22,7 +22,7 @@ This separation follows the `kubectl`/`kubeadm` pattern, providing focused tools
 brew install butlerdotdev/tap/butler
 ```
 
-### Direct Download
+### Direct Download (macOS/Linux)
 
 ```bash
 # Detect OS and architecture
@@ -37,6 +37,21 @@ tar xzf butler_${OS}_${ARCH}.tar.gz
 
 # Install
 sudo mv butleradm butlerctl /usr/local/bin/
+```
+
+### Chocolatey (Windows)
+
+```powershell
+choco install butler-cli
+```
+
+### Direct Download (Windows)
+
+```powershell
+$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+Invoke-WebRequest -Uri "https://github.com/butlerdotdev/butler-cli/releases/latest/download/butler_windows_${arch}.tar.gz" -OutFile butler.tar.gz
+tar xzf butler.tar.gz
+Move-Item butleradm.exe, butlerctl.exe -Destination "$env:LOCALAPPDATA\Microsoft\WindowsApps\"
 ```
 
 ### Verify Installation
