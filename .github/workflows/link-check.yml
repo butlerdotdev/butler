@@ -28,7 +28,6 @@ jobs:
           args: >-
             --verbose
             --no-progress
-            --exclude-mail
             --exclude "^https://github.com/butlerdotdev/butler-provider-proxmox"
             --exclude "^https://github.com/butlerdotdev/butler-controller"
             --exclude "^https://github.com/butlerdotdev/butler-provider-nutanix"
