@@ -44,6 +44,7 @@ This document provides the authoritative registry of all repositories in the But
 |-----------|------------|---------|------------|--------|
 | Homebrew Tap | [homebrew-tap](https://github.com/butlerdotdev/homebrew-tap) | macOS/Linux CLI installation | @core-maintainers | Stable |
 | Chocolatey | [chocolatey](https://community.chocolatey.org/packages/butler-cli) | Windows CLI installation | @core-maintainers | Stable |
+
 ---
 
 ## Status Definitions

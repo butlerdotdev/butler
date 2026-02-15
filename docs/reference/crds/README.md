@@ -45,6 +45,13 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 | TenantAddon | Namespaced | `ta` | Addon on tenant cluster |
 | ManagementAddon | Cluster | `ma` | Addon on management cluster |
 
+### Networking
+
+| CRD | Scope | Short Name | Description |
+|-----|-------|------------|-------------|
+| [NetworkPool](./networkpool.md) | Namespaced | `np` | IP address pool for on-prem IPAM |
+| [IPAllocation](./ipallocation.md) | Namespaced | `ipa` | Individual IP allocation from a pool |
+
 ## Steward Resources
 
 Steward provides hosted control plane management.
@@ -63,6 +70,8 @@ Steward provides hosted control plane management.
 | `app.kubernetes.io/managed-by: butler` | Resource managed by Butler |
 | `butler.butlerlabs.dev/team: <name>` | Team ownership |
 | `butler.butlerlabs.dev/cluster: <name>` | Associated tenant cluster |
+| `butler.butlerlabs.dev/network-pool` | Associated network pool |
+| `butler.butlerlabs.dev/allocation-type` | IP allocation type (loadbalancer, nodes) |
 
 ### Annotations
 
@@ -77,9 +86,12 @@ Butler uses finalizers to ensure proper cleanup:
 
 | Finalizer | Applied To | Purpose |
 |-----------|------------|---------|
-| `butler.butlerlabs.dev/tenant-cluster` | TenantCluster | Cleanup child resources |
+| `butler.butlerlabs.dev/tenantcluster` | TenantCluster | Cleanup child resources |
 | `butler.butlerlabs.dev/team` | Team | Cleanup namespace and RBAC |
-| `butler.butlerlabs.dev/addon` | TenantAddon | Uninstall Helm release |
+| `butler.butlerlabs.dev/tenantaddon` | TenantAddon | Uninstall Helm release |
+| `butler.butlerlabs.dev/networkpool` | NetworkPool | Block deletion with active allocations |
+| `butler.butlerlabs.dev/ipallocation` | IPAllocation | Ensure Released phase for audit trail |
+| `butler.butlerlabs.dev/providerconfig` | ProviderConfig | Block deletion if TenantClusters reference it |
 
 ## See Also
 

@@ -67,6 +67,7 @@ Traditional control plane with dedicated VMs for control plane nodes. Each tenan
 An infrastructure adapter that provisions VMs for Butler clusters. Providers implement the interface between Butler and specific infrastructure platforms.
 
 **Current Providers:**
+
 | Provider | Platform | CAPI Provider |
 |----------|----------|---------------|
 | butler-provider-harvester | Harvester HCI | KubeVirt (capk) |
