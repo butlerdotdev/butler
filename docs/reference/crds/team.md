@@ -3,8 +3,6 @@ title: Team
 sidebar_position: 4
 ---
 
-# Team
-
 A Team represents a multi-tenancy boundary in Butler, grouping users, clusters, and resource quotas under a single organizational unit.
 
 ## API Version

@@ -3,8 +3,6 @@ title: ProviderConfig
 sidebar_position: 3
 ---
 
-# ProviderConfig
-
 A ProviderConfig defines connection credentials, infrastructure settings, network configuration, and resource limits for an infrastructure provider.
 
 ## API Version
@@ -151,7 +149,7 @@ Configuration for [Google Cloud Platform](https://cloud.google.com/).
 
 ---
 
-## Scope
+## Provider Scope
 
 The `spec.scope` field controls which teams can use the ProviderConfig for cluster provisioning.
 
@@ -616,6 +614,5 @@ spec:
 ## See Also
 
 - [TenantCluster](./tenantcluster.md) -- Uses ProviderConfig for infrastructure provisioning
-- [MachineRequest](./machinerequest.md) -- VM lifecycle requests dispatched to provider controllers
 - [Team](./team.md) -- Multi-tenancy unit; team-scoped ProviderConfigs restrict access
-- [Provider Guides](../../guides/providers.md) -- Provider-specific setup and configuration guides
+- [Networking Architecture](../../architecture/networking.md) -- IPAM, pools, and allocation flows

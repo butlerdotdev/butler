@@ -31,43 +31,23 @@ Butler's networking subsystem provides automated IP address management for on-pr
 
 The subsystem consists of three CRDs and four cooperating controllers:
 
-```
-                    ┌──────────────────────────────────────────────────┐
-                    │              Management Cluster                  │
-                    │                                                  │
-                    │   ┌─────────────┐    ┌────────────────────────┐  │
-                    │   │ NetworkPool │    │ ProviderConfig         │  │
-                    │   │ 10.40.0.0/21│    │ mode: ipam             │  │
-                    │   │             │    │ poolRefs:              │  │
-                    │   │  Reserved:  │    │   - name: lab-pool     │  │
-                    │   │  .0-.10 mgmt│    │     priority: 0        │  │
-                    │   └──────┬──────┘    └────────────┬───────────┘  │
-                    │          │                        │              │
-                    │          ▼                        │              │
-                    │   ┌─────────────┐                │              │
-                    │   │ NetworkPool │◄───────────────┘              │
-                    │   │ Controller  │                               │
-                    │   │             │                               │
-                    │   │ Bitmap      │   ┌─────────────────────┐     │
-                    │   │ Allocator   │──▶│ IPAllocation         │     │
-                    │   └─────────────┘   │ phase: Allocated     │     │
-                    │                     │ start: 10.40.1.0     │     │
-                    │                     │ end:   10.40.1.7     │     │
-                    │                     └──────────┬──────────┘     │
-                    │                                │                │
-                    └────────────────────────────────┼────────────────┘
-                                                     │
-                                                     ▼
-                    ┌──────────────────────────────────────────────────┐
-                    │              Tenant Cluster                      │
-                    │                                                  │
-                    │   ┌──────────────────────────┐                  │
-                    │   │ MetalLB IPAddressPool     │                  │
-                    │   │ addresses:                │                  │
-                    │   │   - 10.40.1.0-10.40.1.7  │                  │
-                    │   └──────────────────────────┘                  │
-                    │                                                  │
-                    └──────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph MC["Management Cluster"]
+        NP["NetworkPool\n10.40.0.0/21\nReserved: .0-.10 mgmt"]
+        PC["ProviderConfig\nmode: ipam\npoolRefs:\n  - lab-pool (priority: 0)"]
+        NPC["NetworkPool Controller\nBitmap Allocator"]
+        IPA["IPAllocation\nphase: Allocated\nstart: 10.40.1.0\nend: 10.40.1.7"]
+    end
+
+    subgraph TC["Tenant Cluster"]
+        MLBPool["MetalLB IPAddressPool\naddresses:\n  - 10.40.1.0-10.40.1.7"]
+    end
+
+    NP --> NPC
+    PC --> NPC
+    NPC --> IPA
+    IPA --> MLBPool
 ```
 
 Key design principles:

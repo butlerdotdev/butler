@@ -144,20 +144,29 @@ NetworkPool is the authoritative source of IP address space for on-premises depl
 
 5. **Release on deletion.** When a TenantCluster is deleted, its IPAllocations transition to `Released` phase. The NetworkPool controller reclaims the IPs and updates pool utilization counters.
 
+```mermaid
+flowchart LR
+    subgraph pool["NetworkPool 10.40.0.0/24"]
+        R1["Reserved\n.0-.15"]
+        TCA["TC-A\nnodes"]
+        TCB["TC-B\nlb"]
+        Free["Free\n.16-.239"]
+        R2["Reserved\n.240-.255"]
+    end
+
+    R1 ~~~ TCA
+    TCA ~~~ TCB
+    TCB ~~~ Free
+    Free ~~~ R2
+
+    style R1 fill:#ff9999,color:#333
+    style R2 fill:#ff9999,color:#333
+    style TCA fill:#99ccff,color:#333
+    style TCB fill:#99ccff,color:#333
+    style Free fill:#99ff99,color:#333
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    NetworkPool (10.40.0.0/24)                │
-│                                                              │
-│  ┌──────────┐  ┌──────────────────────┐  ┌──────────┐      │
-│  │ Reserved  │  │   Allocatable Range  │  │ Reserved │      │
-│  │ .0 - .15  │  │   .16 - .239         │  │.240-.255 │      │
-│  └──────────┘  │  ┌─────┐ ┌────┐ Free │  └──────────┘      │
-│                │  │TC-A  │ │TC-B│      │                     │
-│                │  │nodes │ │ lb │      │                     │
-│                │  └─────┘ └────┘      │                     │
-│                └──────────────────────┘                      │
-└─────────────────────────────────────────────────────────────┘
-```
+
+The diagram shows a NetworkPool with reserved ranges at the start and end, two tenant allocations in the middle, and free space available for future allocations.
 
 ## Webhook Validation
 

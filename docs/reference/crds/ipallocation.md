@@ -158,24 +158,13 @@ my-cluster-lb       vlan40-pool   my-cluster    loadbalancer   Allocated   10.40
 
 An IPAllocation progresses through the following phases:
 
-```
-                  ┌──────────┐
-                  │ Pending  │  Created by TenantCluster controller
-                  └────┬─────┘
-                       │
-            NetworkPool controller fulfills
-                       │
-              ┌────────┴────────┐
-              │                 │
-        ┌─────▼─────┐   ┌──────▼─────┐
-        │ Allocated  │   │  Failed    │  Pool exhausted or invalid request
-        └─────┬──────┘   └────────────┘
-              │
-     TenantCluster deleted
-              │
-        ┌─────▼─────┐
-        │ Released   │  IPs returned to pool
-        └────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Created by TenantCluster controller
+    Pending --> Allocated: NetworkPool controller fulfills
+    Pending --> Failed: Pool exhausted or invalid request
+    Allocated --> Released: TenantCluster deleted
+    Released --> [*]: IPs returned to pool
 ```
 
 1. **Pending** -- The TenantCluster controller creates the IPAllocation. It sits in `Pending` phase until the NetworkPool controller processes it.
