@@ -145,6 +145,19 @@ Installs an addon on a cluster:
 
 [Detailed addon system](addon-system.md)
 
+### IP Address Management
+
+Allocates IP addresses to tenant clusters from shared pools:
+
+1. Platform admin creates NetworkPool with CIDR range
+2. ProviderConfig references pools via poolRefs
+3. TenantCluster provisioning creates IPAllocation (Pending)
+4. NetworkPool controller allocates IPs using best-fit algorithm
+5. TenantCluster configures MetalLB with allocated ranges
+6. On deletion, IPs are released back to the pool
+
+[Detailed networking architecture](networking.md)
+
 ---
 
 ## Detailed Documentation
@@ -155,7 +168,7 @@ Installs an addon on a cluster:
 | [Tenant Lifecycle](tenant-lifecycle.md) | Tenant cluster provisioning and management |
 | [Addon System](addon-system.md) | Addon catalog and installation |
 | [Multi-Tenancy](multi-tenancy.md) | Teams, RBAC, and isolation |
-| [Networking](networking.md) | Network architecture and configuration |
+| [Networking](networking.md) | Network architecture, IPAM, and IP allocation |
 | [Security Model](security-model.md) | Authentication, authorization, and secrets |
 
 ---
