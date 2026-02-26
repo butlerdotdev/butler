@@ -1,39 +1,25 @@
 site_name: Butler
-docs_dir: .
+docs_dir: docs
 nav:
-  - Home: index.md
-  - Overview:
-      - Introduction: docs/intro.md
-      - Concepts: docs/overview/concepts.md
-  - Getting Started: docs/getting-started/README.md
+  - Home: README.md
+  - Introduction: intro.md
+  - Concepts: overview/concepts.md
+  - Getting Started: getting-started/README.md
   - Architecture:
-      - Overview: docs/architecture/README.md
-      - Multi-Tenancy: docs/architecture/multi-tenancy.md
-      - Networking: docs/architecture/networking.md
-      - Tenant Lifecycle: docs/architecture/tenant-lifecycle.md
-      - Addon System: docs/architecture/addon-system.md
-      - Bootstrap Flow: docs/architecture/bootstrap-flow.md
+      - Overview: architecture/README.md
+      - Multi-Tenancy: architecture/multi-tenancy.md
+      - Networking: architecture/networking.md
+      - Tenant Lifecycle: architecture/tenant-lifecycle.md
+      - Addon System: architecture/addon-system.md
+      - Bootstrap Flow: architecture/bootstrap-flow.md
   - Providers:
-      - Overview: docs/providers/README.md
-      - Harvester: docs/providers/harvester.md
-      - Nutanix: docs/providers/nutanix.md
-  - Operations: docs/operations/README.md
+      - Overview: providers/README.md
+      - Harvester: providers/harvester.md
+      - Nutanix: providers/nutanix.md
+  - Operations: operations/README.md
   - Contributing:
-      - Guide: CONTRIBUTING.md
-      - Development Setup: docs/contributing/development-setup.md
-      - Adding Providers: docs/contributing/adding-providers.md
-  - Releases:
-      - Overview: releases/README.md
-      - Compatibility Matrix: releases/compatibility-matrix.md
-      - Upgrade Guide: releases/upgrade-guide.md
-  - Community:
-      - Overview: community/README.md
-      - Adopters: community/adopters.md
-  - Governance: governance/GOVERNANCE.md
-  - Roadmap: docs/roadmap/README.md
-  - Components: COMPONENTS.md
-  - Code of Conduct: CODE_OF_CONDUCT.md
-  - DCO: DCO.md
-  - Security: SECURITY.md
+      - Development Setup: contributing/development-setup.md
+      - Adding Providers: contributing/adding-providers.md
+  - Roadmap: roadmap/README.md
 plugins:
   - search
