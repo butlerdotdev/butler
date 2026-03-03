@@ -11,6 +11,8 @@ Core maintainers have write access to all Butler repositories and are responsibl
 | Name | GitHub | Affiliation | Scope |
 |------|--------|-------------|-------|
 | Andrew | [@atbagan](https://github.com/atbagan) | Butler Labs | All components |
+| Chad | [@cthiel42](https://github.com/cthiel42) | Butler Labs | All components |
+| Chris | [@crlux](https://github.com/crlux) | Butler Labs | All components |
 
 ### Component Maintainers
 

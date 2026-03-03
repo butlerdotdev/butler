@@ -5,8 +5,8 @@ apiVersion: butler.butlerlabs.dev/v1
 kind: Ecosystem
 metadata:
   name: butler
-  version: "2025-01"
-  lastUpdated: "2025-01-18"
+  version: "2026-03"
+  lastUpdated: "2026-03-02"
 
 spec:
   organization: butlerdotdev
@@ -38,6 +38,8 @@ spec:
           - ManagementAddon
           - AddonDefinition
           - IdentityProvider
+          - NetworkPool
+          - IPAllocation
         
       - name: butler-controller
         description: Tenant cluster lifecycle and addon management controller
@@ -155,6 +157,61 @@ spec:
           - butler-provider-harvester
           - butler-provider-nutanix
 
+    controlPlane:
+      - name: steward
+        description: Hosted control plane operator that runs tenant API servers as Pods
+        repository: https://github.com/butlerdotdev/steward
+        type: controller
+        language: go
+        status: stable
+        defaultBranch: master
+        maintainers:
+          - "@core-maintainers"
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/steward
+          - type: helm
+            registry: oci://ghcr.io/butlerdotdev/charts/steward
+        crds:
+          - TenantControlPlane
+          - DataStore
+          - KubeconfigGenerator
+
+      - name: capi-steward
+        description: Cluster API control plane provider for Steward
+        repository: https://github.com/butlerdotdev/cluster-api-control-plane-provider-steward
+        type: controller
+        language: go
+        status: stable
+        maintainers:
+          - "@core-maintainers"
+        artifacts:
+          - type: container
+            registry: ghcr.io/butlerdotdev/capi-steward
+        crds:
+          - StewardControlPlane
+          - StewardControlPlaneTemplate
+
+    ecosystem:
+      - name: butler-portal
+        description: Internal Developer Platform (Backstage-based) with Chambers, Keeper, and Herald
+        repository: https://github.com/butlerdotdev/butler-portal
+        type: frontend
+        language: typescript
+        framework: backstage
+        status: beta
+        maintainers:
+          - "@core-maintainers"
+
+      - name: butler-image-factory
+        description: OS image factory for building pre-configured Talos and Kairos images
+        repository: https://github.com/butlerdotdev/butler-image-factory
+        type: backend
+        language: go
+        status: beta
+        maintainers:
+          - "@core-maintainers"
+
     providers:
       - name: butler-provider-harvester
         description: Harvester HCI infrastructure provider for VM provisioning
@@ -179,7 +236,7 @@ spec:
         repository: https://github.com/butlerdotdev/butler-provider-nutanix
         type: provider
         language: go
-        status: stable
+        status: beta
         maintainers:
           - "@provider-maintainers"
         infrastructure: nutanix
@@ -197,7 +254,7 @@ spec:
         repository: https://github.com/butlerdotdev/butler-provider-proxmox
         type: provider
         language: go
-        status: planned
+        status: in-progress
         maintainers:
           - "@provider-maintainers"
         infrastructure: proxmox

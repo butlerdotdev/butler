@@ -12,6 +12,7 @@
 - [ ] Design proposal / ADR
 - [ ] Governance change
 - [ ] Release notes
+- [ ] Breaking change
 - [ ] Other (describe below)
 
 ## Checklist
