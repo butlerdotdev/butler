@@ -58,6 +58,11 @@ Butler is a multi-repository project. Use this guide to find the right place for
 - Configuration handling
 - Shell completions
 
+### Hosted Control Planes
+**Repositories**:
+- Steward operator: [steward](https://github.com/butlerdotdev/steward) (default branch: `master`)
+- CAPI provider: [capi-steward](https://github.com/butlerdotdev/cluster-api-control-plane-provider-steward)
+
 ### Console/UI Changes
 **Repositories**:
 - Frontend (React): [butler-console](https://github.com/butlerdotdev/butler-console)
@@ -91,7 +96,7 @@ Butler is a multi-repository project. Use this guide to find the right place for
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.22+ | Controller and CLI development |
+| Go | 1.24+ | Controller and CLI development |
 | Node.js | 20+ | Console frontend development |
 | Docker | Latest | Container builds, KIND clusters |
 | kubectl | 1.28+ | Kubernetes interaction |

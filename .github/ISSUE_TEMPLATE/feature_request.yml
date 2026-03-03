@@ -1,0 +1,73 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For significant features spanning multiple components, consider writing a
+        [Design Proposal](https://github.com/butlerdotdev/butler/tree/main/design/proposals).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? Why is it needed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed solution.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Components
+      description: Which Butler components would need changes?
+      multiple: true
+      options:
+        - butler-api (CRD changes)
+        - butler-controller
+        - butler-bootstrap
+        - butler-cli
+        - butler-console
+        - butler-server
+        - butler-charts
+        - steward
+        - capi-steward
+        - butler-portal
+        - butler-provider-*
+        - Documentation only
+        - New component
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What alternatives have you considered?
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Who would use this feature? Describe specific use cases.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, diagrams, or any other context.
+    validations:
+      required: false

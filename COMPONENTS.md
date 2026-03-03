@@ -5,11 +5,14 @@ This document provides the authoritative registry of all repositories in the But
 ## Table of Contents
 
 - [Core Components](#core-components)
+- [Hosted Control Planes](#hosted-control-planes)
+- [Ecosystem](#ecosystem)
 - [Infrastructure Providers](#infrastructure-providers)
 - [Distribution](#distribution)
 - [Status Definitions](#status-definitions)
 - [Dependency Graph](#dependency-graph)
 - [Container Images](#container-images)
+- [Core CRDs](#core-crds)
 - [Adding New Components](#adding-new-components)
 
 ---
@@ -28,13 +31,31 @@ This document provides the authoritative registry of all repositories in the But
 
 ---
 
+## Hosted Control Planes
+
+| Component | Repository | Purpose | Language | Maintainer | Status |
+|-----------|------------|---------|----------|------------|--------|
+| Steward | [steward](https://github.com/butlerdotdev/steward) | Hosted control plane operator. Runs tenant API servers as Pods. | Go | @core-maintainers | Stable |
+| CAPI Steward | [capi-steward](https://github.com/butlerdotdev/cluster-api-control-plane-provider-steward) | Cluster API control plane provider for Steward | Go | @core-maintainers | Stable |
+
+---
+
+## Ecosystem
+
+| Component | Repository | Purpose | Language | Maintainer | Status |
+|-----------|------------|---------|----------|------------|--------|
+| Butler Portal | [butler-portal](https://github.com/butlerdotdev/butler-portal) | Internal Developer Platform (Backstage-based) with Chambers, Keeper, Herald | TypeScript | @core-maintainers | Beta |
+| Image Factory | [butler-image-factory](https://github.com/butlerdotdev/butler-image-factory) | OS image factory for Talos and Kairos images | Go | @core-maintainers | Beta |
+
+---
+
 ## Infrastructure Providers
 
 | Provider | Repository | Infrastructure | CAPI Provider | Maintainer | Status |
 |----------|------------|----------------|---------------|------------|--------|
 | Harvester | [butler-provider-harvester](https://github.com/butlerdotdev/butler-provider-harvester) | Harvester HCI | KubeVirt (capk) | @provider-maintainers | Stable |
-| Nutanix | [butler-provider-nutanix](https://github.com/butlerdotdev/butler-provider-nutanix) | Nutanix AHV | CAPX v1.4.0 | @provider-maintainers | Stable |
-| Proxmox | butler-provider-proxmox | Proxmox VE | TBD | @provider-maintainers | Planned |
+| Nutanix | [butler-provider-nutanix](https://github.com/butlerdotdev/butler-provider-nutanix) | Nutanix AHV | CAPX v1.4.0 | @provider-maintainers | Beta |
+| Proxmox | [butler-provider-proxmox](https://github.com/butlerdotdev/butler-provider-proxmox) | Proxmox VE | TBD | @provider-maintainers | In Progress |
 
 ---
 
@@ -54,6 +75,7 @@ This document provides the authoritative registry of all repositories in the But
 | **Stable** | Production-ready. Follows semantic versioning. Breaking changes require major version bump. |
 | **Beta** | Feature-complete. May have breaking changes in minor versions. Suitable for non-critical use. |
 | **Alpha** | Experimental. Breaking changes expected. Not recommended for production. |
+| **In Progress** | Under active development. Not yet released. |
 | **Planned** | Not yet implemented. Design phase or roadmap item. |
 
 ---
@@ -115,6 +137,9 @@ All images are published to GitHub Container Registry (GHCR):
 | `ghcr.io/butlerdotdev/butler-console` | butler-console | amd64, arm64 |
 | `ghcr.io/butlerdotdev/butler-provider-harvester` | butler-provider-harvester | amd64, arm64 |
 | `ghcr.io/butlerdotdev/butler-provider-nutanix` | butler-provider-nutanix | amd64, arm64 |
+| `ghcr.io/butlerdotdev/steward` | steward | amd64, arm64 |
+| `ghcr.io/butlerdotdev/capi-steward` | capi-steward | amd64, arm64 |
+| `ghcr.io/butlerdotdev/steward-tcp-proxy` | steward | amd64, arm64 |
 
 ### Helm Charts (OCI)
 
@@ -129,6 +154,8 @@ Charts are published as OCI artifacts:
 | butler-addons | `oci://ghcr.io/butlerdotdev/charts/butler-addons` | [source](https://github.com/butlerdotdev/butler-charts/tree/main/charts/butler-addons) |
 | butler-provider-harvester | `oci://ghcr.io/butlerdotdev/charts/butler-provider-harvester` | [source](https://github.com/butlerdotdev/butler-charts/tree/main/charts/butler-provider-harvester) |
 | butler-provider-nutanix | `oci://ghcr.io/butlerdotdev/charts/butler-provider-nutanix` | [source](https://github.com/butlerdotdev/butler-charts/tree/main/charts/butler-provider-nutanix) |
+| steward | `oci://ghcr.io/butlerdotdev/charts/steward` | [source](https://github.com/butlerdotdev/steward/tree/master/charts/steward) |
+| steward-crds | `oci://ghcr.io/butlerdotdev/charts/steward-crds` | [source](https://github.com/butlerdotdev/steward/tree/master/charts/steward-crds) |
 
 ---
 
@@ -156,6 +183,8 @@ All CRDs are defined in `butler-api` and distributed via the `butler-crds` Helm 
 | `ManagementAddon` | butler.butlerlabs.dev | Cluster | Management cluster components |
 | `AddonDefinition` | butler.butlerlabs.dev | Cluster | Addon catalog entries |
 | `IdentityProvider` | butler.butlerlabs.dev | Cluster | SSO/OIDC configuration |
+| `NetworkPool` | butler.butlerlabs.dev | Namespaced | IPAM pool with allocatable CIDR ranges |
+| `IPAllocation` | butler.butlerlabs.dev | Namespaced | Individual IP range allocation records |
 
 ---
 

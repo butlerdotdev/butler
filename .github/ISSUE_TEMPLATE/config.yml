@@ -1,8 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Butler Discussions
+  - name: Ask a Question
     url: https://github.com/butlerdotdev/butler/discussions
-    about: Ask questions and discuss Butler
+    about: Use GitHub Discussions for questions, ideas, and general conversation.
   - name: Component-Specific Issues
     url: https://github.com/butlerdotdev/butler/blob/main/COMPONENTS.md
-    about: For bugs in specific components, open issues in the relevant repository
+    about: For bugs in a single component, open an issue in that component's repository.
+  - name: Documentation
+    url: https://docs.butlerlabs.dev
+    about: Check the documentation for guides, reference material, and troubleshooting.
+  - name: Security Vulnerability
+    url: https://github.com/butlerdotdev/butler/blob/main/SECURITY.md
+    about: Report security vulnerabilities privately. Do not open a public issue.
