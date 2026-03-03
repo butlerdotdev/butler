@@ -94,7 +94,7 @@ Built by [Butler Labs](https://butlerlabs.dev) to solve the problem we kept seei
 | Provider | Type | Status | Kubernetes Versions |
 |----------|------|--------|---------------------|
 | **Harvester HCI** | On-Premises | Stable | 1.28 - 1.31 |
-| **Nutanix AHV** | On-Premises | Beta | 1.28 - 1.31 |
+| **Nutanix AHV** | On-Premises | Stable | 1.28 - 1.31 |
 | **Proxmox VE** | On-Premises | In Progress | - |
 | **AWS** | Cloud | In Progress | - |
 | **Azure** | Cloud | In Progress | - |
@@ -116,7 +116,7 @@ Butler is in **active development** and running in production. Current API versi
 | **TenantCluster CRD** | Alpha | Yes (with caveats) | API may change in minor versions |
 | **Team / Multi-Tenancy** | Alpha | Yes | Fully functional |
 | **NetworkPool / IPAM** | Alpha | Yes | Enterprise networking |
-| **Nutanix Provider** | Beta | Yes | Active development |
+| **Nutanix Provider** | Stable | Yes | Production ready |
 | **butlerctl CLI** | Beta | Yes | Core commands stable |
 | **Butler Console** | Beta | No | Under active development |
 
@@ -569,7 +569,7 @@ Butler is composed of multiple repositories, each with a specific responsibility
 | Provider | Repository | Infrastructure | Status |
 |----------|------------|----------------|--------|
 | **Harvester** | [butler-provider-harvester](https://github.com/butlerdotdev/butler-provider-harvester) | Harvester HCI (KubeVirt) | Stable |
-| **Nutanix** | [butler-provider-nutanix](https://github.com/butlerdotdev/butler-provider-nutanix) | Nutanix AHV (CAPX) | Beta |
+| **Nutanix** | [butler-provider-nutanix](https://github.com/butlerdotdev/butler-provider-nutanix) | Nutanix AHV (CAPX) | Stable |
 | **Proxmox** | [butler-provider-proxmox](https://github.com/butlerdotdev/butler-provider-proxmox) | Proxmox VE | In Progress |
 | **AWS** | butler-provider-aws | Amazon EC2 (CAPA) | In Progress |
 | **Azure** | butler-provider-azure | Azure VMs (CAPZ) | In Progress |
