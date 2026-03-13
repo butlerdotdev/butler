@@ -19,8 +19,9 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 | CRD | Scope | Short Name | Description |
 |-----|-------|------------|-------------|
 | [TenantCluster](./tenantcluster.md) | Namespaced | `tc` | Tenant Kubernetes cluster |
-| ClusterBootstrap | Namespaced | `cb` | Management cluster bootstrap |
-| MachineRequest | Namespaced | `mr` | VM provisioning request |
+| [ClusterBootstrap](./clusterbootstrap.md) | Namespaced | `cb` | Management cluster bootstrap |
+| [MachineRequest](./machinerequest.md) | Namespaced | `mr` | VM provisioning request |
+| [LoadBalancerRequest](./loadbalancerrequest.md) | Namespaced | `lbr` | Cloud L4 load balancer for control plane |
 
 ### Platform Configuration
 
@@ -92,6 +93,8 @@ Butler uses finalizers to ensure proper cleanup:
 | `butler.butlerlabs.dev/networkpool` | NetworkPool | Block deletion with active allocations |
 | `butler.butlerlabs.dev/ipallocation` | IPAllocation | Ensure Released phase for audit trail |
 | `butler.butlerlabs.dev/providerconfig` | ProviderConfig | Block deletion if TenantClusters reference it |
+| `butler.butlerlabs.dev/loadbalancerrequest` | LoadBalancerRequest | Ensure cloud LB resources are deleted before CR removal |
+| `clusterbootstrap.butler.butlerlabs.dev/finalizer` | ClusterBootstrap | Cleanup MachineRequests, LoadBalancerRequests, and Secrets |
 
 ## See Also
 

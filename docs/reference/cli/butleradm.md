@@ -142,6 +142,112 @@ butleradm bootstrap proxmox [flags]
 | `--proxmox-endpoint` | Proxmox API endpoint | Yes |
 | `--proxmox-token` | Proxmox API token | Yes |
 
+### butleradm bootstrap gcp
+
+Bootstrap Butler on Google Cloud Platform.
+
+```bash
+butleradm bootstrap gcp [flags]
+```
+
+**Flags:**
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--config` | Path to bootstrap config file | Yes |
+| `--credentials` | Path to GCP service account JSON key | Yes |
+| `--dry-run` | Validate without executing | No |
+| `--skip-cleanup` | Don't cleanup KIND on success | No |
+
+**Examples:**
+
+```bash
+# Bootstrap on GCP
+butleradm bootstrap gcp \
+  --config bootstrap.yaml \
+  --credentials gcp-credentials.json
+
+# Dry run to validate
+butleradm bootstrap gcp \
+  --config bootstrap.yaml \
+  --credentials gcp-credentials.json \
+  --dry-run
+```
+
+### butleradm bootstrap aws
+
+Bootstrap Butler on Amazon Web Services.
+
+```bash
+butleradm bootstrap aws [flags]
+```
+
+**Flags:**
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--config` | Path to bootstrap config file | Yes |
+| `--access-key-id` | AWS access key ID | Yes |
+| `--secret-access-key` | AWS secret access key | Yes |
+| `--dry-run` | Validate without executing | No |
+| `--skip-cleanup` | Don't cleanup KIND on success | No |
+
+**Examples:**
+
+```bash
+# Bootstrap on AWS
+butleradm bootstrap aws \
+  --config bootstrap.yaml \
+  --access-key-id AKIAIOSFODNN7EXAMPLE \
+  --secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```
+
+### butleradm bootstrap azure
+
+Bootstrap Butler on Microsoft Azure.
+
+```bash
+butleradm bootstrap azure [flags]
+```
+
+**Flags:**
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--config` | Path to bootstrap config file | Yes |
+| `--client-id` | Azure service principal app ID | Yes |
+| `--client-secret` | Azure service principal password | Yes |
+| `--tenant-id` | Azure tenant ID | Yes |
+| `--subscription-id` | Azure subscription ID | Yes |
+| `--dry-run` | Validate without executing | No |
+| `--skip-cleanup` | Don't cleanup KIND on success | No |
+
+**Examples:**
+
+```bash
+# Bootstrap on Azure
+butleradm bootstrap azure \
+  --config bootstrap.yaml \
+  --client-id APP_ID \
+  --client-secret PASSWORD \
+  --tenant-id TENANT_ID \
+  --subscription-id SUBSCRIPTION_ID
+```
+
+### Bootstrap Config Reference
+
+The bootstrap config file is a ClusterBootstrap resource. See the [ClusterBootstrap CRD reference](../crds/clusterbootstrap.md) for the full spec. Key sections:
+
+| Section | Purpose | On-Prem | Cloud |
+|---------|---------|---------|-------|
+| `spec.provider` | Infrastructure provider | `harvester`, `nutanix`, `proxmox` | `gcp`, `aws`, `azure` |
+| `spec.cluster` | Topology, node sizing | Required | Required |
+| `spec.network.vip` | Control plane VIP | Required | Not needed (LB endpoint used) |
+| `spec.network.loadBalancerPool` | MetalLB IP range | Required | Not needed |
+| `spec.talos` | Talos version, schematic, install disk | Required | Required |
+| `spec.addons` | Platform addons | All available | kube-vip and MetalLB skipped |
+| `spec.controlPlaneExposure` | Tenant API server exposure | Optional | Optional |
+
 ---
 
 ## butleradm status
