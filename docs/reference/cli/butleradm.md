@@ -28,7 +28,7 @@ Bootstrap a new Butler management cluster.
 
 ### Common Flags
 
-All `butleradm bootstrap <provider>` commands share the same flags. Provider-specific settings (credentials, regions, networks) are specified in the bootstrap config YAML file.
+All `butleradm bootstrap <provider>` commands share these flags. Each provider also has credential override flags documented in its section below.
 
 | Flag | Short | Description | Required |
 |------|-------|-------------|----------|
@@ -46,11 +46,21 @@ Bootstrap Butler on Harvester HCI.
 butleradm bootstrap harvester [flags]
 ```
 
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--harvester-kubeconfig` | Path to Harvester kubeconfig (overrides config file) |
+
 **Examples:**
 
 ```bash
 # Bootstrap with config file
 butleradm bootstrap harvester --config bootstrap.yaml
+
+# Override Harvester kubeconfig via flag
+butleradm bootstrap harvester --config bootstrap.yaml \
+  --harvester-kubeconfig /path/to/harvester-kubeconfig
 
 # Dry run to validate
 butleradm bootstrap harvester --config bootstrap.yaml --dry-run
@@ -113,10 +123,25 @@ Bootstrap Butler on Nutanix AHV.
 butleradm bootstrap nutanix [flags]
 ```
 
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--prism-endpoint` | Nutanix Prism Central endpoint (overrides config file) |
+| `--prism-username` | Nutanix Prism Central username (overrides config file) |
+| `--prism-password` | Nutanix Prism Central password (overrides config file) |
+
 **Examples:**
 
 ```bash
+# Bootstrap with config file
 butleradm bootstrap nutanix --config bootstrap.yaml
+
+# Override Prism credentials via flags
+butleradm bootstrap nutanix --config bootstrap.yaml \
+  --prism-endpoint https://prism.example.com:9440 \
+  --prism-username admin \
+  --prism-password "${PRISM_PASSWORD}"
 ```
 
 ### butleradm bootstrap proxmox
@@ -137,11 +162,21 @@ Bootstrap Butler on Google Cloud Platform.
 butleradm bootstrap gcp [flags]
 ```
 
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--credentials` | Path to GCP service account JSON key (overrides config file) |
+
 **Examples:**
 
 ```bash
 # Bootstrap on GCP
 butleradm bootstrap gcp --config bootstrap.yaml
+
+# Override service account key via flag
+butleradm bootstrap gcp --config bootstrap.yaml \
+  --credentials /path/to/sa-key.json
 
 # Dry run to validate
 butleradm bootstrap gcp --config bootstrap.yaml --dry-run
@@ -155,10 +190,23 @@ Bootstrap Butler on Amazon Web Services.
 butleradm bootstrap aws [flags]
 ```
 
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--access-key-id` | AWS access key ID (overrides config file) |
+| `--secret-access-key` | AWS secret access key (overrides config file) |
+
 **Examples:**
 
 ```bash
+# Bootstrap on AWS
 butleradm bootstrap aws --config bootstrap.yaml
+
+# Override AWS credentials via flags
+butleradm bootstrap aws --config bootstrap.yaml \
+  --access-key-id "${AWS_ACCESS_KEY_ID}" \
+  --secret-access-key "${AWS_SECRET_ACCESS_KEY}"
 ```
 
 ### butleradm bootstrap azure
@@ -169,10 +217,27 @@ Bootstrap Butler on Microsoft Azure.
 butleradm bootstrap azure [flags]
 ```
 
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--client-id` | Azure service principal app ID (overrides config file) |
+| `--client-secret` | Azure service principal password (overrides config file) |
+| `--tenant-id` | Azure tenant ID (overrides config file) |
+| `--subscription-id` | Azure subscription ID (overrides config file) |
+
 **Examples:**
 
 ```bash
+# Bootstrap on Azure
 butleradm bootstrap azure --config bootstrap.yaml
+
+# Override Azure credentials via flags
+butleradm bootstrap azure --config bootstrap.yaml \
+  --client-id "${AZURE_CLIENT_ID}" \
+  --client-secret "${AZURE_CLIENT_SECRET}" \
+  --tenant-id "${AZURE_TENANT_ID}" \
+  --subscription-id "${AZURE_SUBSCRIPTION_ID}"
 ```
 
 ### Bootstrap Config Reference
