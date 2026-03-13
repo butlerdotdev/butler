@@ -151,7 +151,7 @@ spec:
 | `podCIDR` | string | Yes | -- | CIDR for pod networking. Pattern: `^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$`. |
 | `serviceCIDR` | string | Yes | -- | CIDR for service networking. Same pattern. |
 | `vip` | string | No | -- | Control plane endpoint. For on-prem: a floating IP managed by kube-vip. For cloud: optional, set automatically from LoadBalancerRequest endpoint. Accepts IP addresses and DNS hostnames. |
-| `vipInterface` | string | No | auto | Network interface for the VIP. Only relevant for on-prem with kube-vip. |
+| `vipInterface` | string | No | -- | Network interface for the VIP. Only relevant for on-prem with kube-vip. Auto-detected by kube-vip if not specified. |
 | `loadBalancerPool` | LoadBalancerPoolSpec | No | -- | IP range for MetalLB. Must not overlap with VIP. |
 
 **LoadBalancerPoolSpec:**
@@ -197,6 +197,8 @@ All addon sub-specs are optional. Defaults are applied when the field is omitted
 | `butlerController` | ButlerControllerAddonSpec | enabled: true, version: latest | Butler platform controller. |
 | `gitOps` | GitOpsAddonSpec | type: flux, enabled: true | GitOps controller. |
 | `console` | ConsoleAddonSpec | enabled: false | Butler web console. |
+
+The CNI, Storage, CAPI, and Console sub-specs are detailed below. The remaining sub-specs (LoadBalancer, ControlPlaneHA, CertManager, Ingress, ControlPlaneProvider, GitOps, ButlerController) follow the same pattern: `enabled` (bool), `type` or `provider` (string), and `version` (string).
 
 #### CNIAddonSpec
 
@@ -363,7 +365,7 @@ The bootstrap flow adapts based on the provider type:
 |--------|---------------------------------------|------------------------|
 | Control plane HA | kube-vip floating VIP | Cloud L4 load balancer via LoadBalancerRequest |
 | CP endpoint source | `network.vip` field | LoadBalancerRequest `status.endpoint` |
-| MetalLB | Installed for LoadBalancer services | Skipped (cloud LBs handle this) |
+| MetalLB | Installed for LoadBalancer services | Not installed (no `loadBalancerPool` configured for cloud providers) |
 | kube-vip | Installed | Skipped |
 | Loopback patch | Not needed | Applied to each CP node so kube-apiserver accepts LB-routed packets |
 | Traefik | Installed for ingress | Skipped |

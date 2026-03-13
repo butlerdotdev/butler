@@ -19,7 +19,7 @@ Namespaced
 
 ## Description
 
-LoadBalancerRequest is used during cloud bootstrap to create a load balancer that fronts the control plane nodes. The bootstrap controller creates a LoadBalancerRequest, and the appropriate cloud provider controller (GCP, AWS, or Azure) provisions the cloud-native load balancer and reports its endpoint. That endpoint is then baked into Talos machine configs as the control plane address before nodes boot.
+LoadBalancerRequest is used during cloud bootstrap to create a load balancer that fronts the control plane nodes. The bootstrap controller creates a LoadBalancerRequest, and the appropriate cloud provider controller (GCP, AWS, or Azure) provisions the cloud-native load balancer and reports its endpoint. That endpoint is then written into Talos machine configs as the control plane address before nodes boot.
 
 On-prem deployments do not use LoadBalancerRequest. They use kube-vip for control plane HA instead.
 

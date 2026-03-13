@@ -125,19 +125,15 @@ sequenceDiagram
     end
 
     rect rgb(230, 245, 255)
-        Note over Bootstrap,Cloud: Phase 2: VM Provisioning
-        Bootstrap->>Provider: Create MachineRequest CRs
-        Provider->>Cloud: Create VMs in VPC subnet
-        Cloud-->>Provider: VMs running with IPs
-        Provider->>Provider: Update MachineRequest status
-    end
-
-    rect rgb(255, 230, 230)
-        Note over Bootstrap,Cloud: Phase 2b: Load Balancer Provisioning
+        Note over Bootstrap,Cloud: Phase 2: Infrastructure Provisioning
         Bootstrap->>KIND: Create LoadBalancerRequest CR
-        Provider->>Cloud: Create static IP, health check, target pool, forwarding rule
+        Bootstrap->>Provider: Create MachineRequest CRs
+        Provider->>Cloud: Provision cloud load balancer resources
+        Provider->>Cloud: Create VMs in VPC subnet
         Cloud-->>Provider: LB ready with endpoint IP
+        Cloud-->>Provider: VMs running with IPs
         Provider->>KIND: Update LoadBalancerRequest status (endpoint)
+        Provider->>Provider: Update MachineRequest status
         Bootstrap->>Bootstrap: Use LB endpoint as control plane address
     end
 

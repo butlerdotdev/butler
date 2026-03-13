@@ -26,6 +26,18 @@ butleradm [command] [flags]
 
 Bootstrap a new Butler management cluster.
 
+### Common Flags
+
+All `butleradm bootstrap <provider>` commands share the same flags. Provider-specific settings (credentials, regions, networks) are specified in the bootstrap config YAML file.
+
+| Flag | Short | Description | Required |
+|------|-------|-------------|----------|
+| `--config` | `-c` | Path to bootstrap config file | Yes |
+| `--dry-run` | | Show what would be created without executing | No |
+| `--skip-cleanup` | | Don't delete KIND cluster on failure (for debugging) | No |
+| `--local` | | Local development mode: build and load images from source | No |
+| `--repo-root` | | Path to butlerdotdev repos (default: `~/code/github.com/butlerdotdev`) | No |
+
 ### butleradm bootstrap harvester
 
 Bootstrap Butler on Harvester HCI.
@@ -34,28 +46,14 @@ Bootstrap Butler on Harvester HCI.
 butleradm bootstrap harvester [flags]
 ```
 
-**Flags:**
-
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--harvester-kubeconfig` | Path to Harvester kubeconfig | Yes |
-| `--dry-run` | Validate without executing | No |
-| `--skip-cleanup` | Don't cleanup KIND on success | No |
-
 **Examples:**
 
 ```bash
 # Bootstrap with config file
-butleradm bootstrap harvester \
-  --config bootstrap.yaml \
-  --harvester-kubeconfig harvester.yaml
+butleradm bootstrap harvester --config bootstrap.yaml
 
 # Dry run to validate
-butleradm bootstrap harvester \
-  --config bootstrap.yaml \
-  --harvester-kubeconfig harvester.yaml \
-  --dry-run
+butleradm bootstrap harvester --config bootstrap.yaml --dry-run
 ```
 
 **Bootstrap Config Example:**
@@ -115,14 +113,11 @@ Bootstrap Butler on Nutanix AHV.
 butleradm bootstrap nutanix [flags]
 ```
 
-**Flags:**
+**Examples:**
 
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--prism-endpoint` | Prism Central endpoint | Yes |
-| `--prism-username` | Prism Central username | Yes |
-| `--prism-password` | Prism Central password | Yes |
+```bash
+butleradm bootstrap nutanix --config bootstrap.yaml
+```
 
 ### butleradm bootstrap proxmox
 
@@ -134,14 +129,6 @@ Bootstrap Butler on Proxmox VE.
 butleradm bootstrap proxmox [flags]
 ```
 
-**Flags:**
-
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--proxmox-endpoint` | Proxmox API endpoint | Yes |
-| `--proxmox-token` | Proxmox API token | Yes |
-
 ### butleradm bootstrap gcp
 
 Bootstrap Butler on Google Cloud Platform.
@@ -150,28 +137,14 @@ Bootstrap Butler on Google Cloud Platform.
 butleradm bootstrap gcp [flags]
 ```
 
-**Flags:**
-
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--credentials` | Path to GCP service account JSON key | Yes |
-| `--dry-run` | Validate without executing | No |
-| `--skip-cleanup` | Don't cleanup KIND on success | No |
-
 **Examples:**
 
 ```bash
 # Bootstrap on GCP
-butleradm bootstrap gcp \
-  --config bootstrap.yaml \
-  --credentials gcp-credentials.json
+butleradm bootstrap gcp --config bootstrap.yaml
 
 # Dry run to validate
-butleradm bootstrap gcp \
-  --config bootstrap.yaml \
-  --credentials gcp-credentials.json \
-  --dry-run
+butleradm bootstrap gcp --config bootstrap.yaml --dry-run
 ```
 
 ### butleradm bootstrap aws
@@ -182,24 +155,10 @@ Bootstrap Butler on Amazon Web Services.
 butleradm bootstrap aws [flags]
 ```
 
-**Flags:**
-
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--access-key-id` | AWS access key ID | Yes |
-| `--secret-access-key` | AWS secret access key | Yes |
-| `--dry-run` | Validate without executing | No |
-| `--skip-cleanup` | Don't cleanup KIND on success | No |
-
 **Examples:**
 
 ```bash
-# Bootstrap on AWS
-butleradm bootstrap aws \
-  --config bootstrap.yaml \
-  --access-key-id AKIAIOSFODNN7EXAMPLE \
-  --secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+butleradm bootstrap aws --config bootstrap.yaml
 ```
 
 ### butleradm bootstrap azure
@@ -210,28 +169,10 @@ Bootstrap Butler on Microsoft Azure.
 butleradm bootstrap azure [flags]
 ```
 
-**Flags:**
-
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--client-id` | Azure service principal app ID | Yes |
-| `--client-secret` | Azure service principal password | Yes |
-| `--tenant-id` | Azure tenant ID | Yes |
-| `--subscription-id` | Azure subscription ID | Yes |
-| `--dry-run` | Validate without executing | No |
-| `--skip-cleanup` | Don't cleanup KIND on success | No |
-
 **Examples:**
 
 ```bash
-# Bootstrap on Azure
-butleradm bootstrap azure \
-  --config bootstrap.yaml \
-  --client-id APP_ID \
-  --client-secret PASSWORD \
-  --tenant-id TENANT_ID \
-  --subscription-id SUBSCRIPTION_ID
+butleradm bootstrap azure --config bootstrap.yaml
 ```
 
 ### Bootstrap Config Reference
@@ -242,10 +183,10 @@ The bootstrap config file is a ClusterBootstrap resource. See the [ClusterBootst
 |---------|---------|---------|-------|
 | `spec.provider` | Infrastructure provider | `harvester`, `nutanix`, `proxmox` | `gcp`, `aws`, `azure` |
 | `spec.cluster` | Topology, node sizing | Required | Required |
-| `spec.network.vip` | Control plane VIP | Required | Not needed (LB endpoint used) |
-| `spec.network.loadBalancerPool` | MetalLB IP range | Required | Not needed |
+| `spec.network.vip` | Control plane VIP | Recommended (kube-vip requires it) | Not needed (LB endpoint used) |
+| `spec.network.loadBalancerPool` | MetalLB IP range | Recommended | Not needed |
 | `spec.talos` | Talos version, schematic, install disk | Required | Required |
-| `spec.addons` | Platform addons | All available | kube-vip and MetalLB skipped |
+| `spec.addons` | Platform addons | All available | kube-vip and MetalLB not installed |
 | `spec.controlPlaneExposure` | Tenant API server exposure | Optional | Optional |
 
 ---
