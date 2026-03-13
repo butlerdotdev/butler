@@ -26,6 +26,18 @@ butleradm [command] [flags]
 
 Bootstrap a new Butler management cluster.
 
+### Common Flags
+
+All `butleradm bootstrap <provider>` commands share these flags. Each provider also has credential override flags documented in its section below.
+
+| Flag | Short | Description | Required |
+|------|-------|-------------|----------|
+| `--config` | `-c` | Path to bootstrap config file | Yes |
+| `--dry-run` | | Show what would be created without executing | No |
+| `--skip-cleanup` | | Don't delete KIND cluster on failure (for debugging) | No |
+| `--local` | | Local development mode: build and load images from source | No |
+| `--repo-root` | | Path to butlerdotdev repos (default: `~/code/github.com/butlerdotdev`) | No |
+
 ### butleradm bootstrap harvester
 
 Bootstrap Butler on Harvester HCI.
@@ -34,28 +46,24 @@ Bootstrap Butler on Harvester HCI.
 butleradm bootstrap harvester [flags]
 ```
 
-**Flags:**
+**Provider Flags:**
 
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--harvester-kubeconfig` | Path to Harvester kubeconfig | Yes |
-| `--dry-run` | Validate without executing | No |
-| `--skip-cleanup` | Don't cleanup KIND on success | No |
+| Flag | Description |
+|------|-------------|
+| `--harvester-kubeconfig` | Path to Harvester kubeconfig (overrides config file) |
 
 **Examples:**
 
 ```bash
 # Bootstrap with config file
-butleradm bootstrap harvester \
-  --config bootstrap.yaml \
-  --harvester-kubeconfig harvester.yaml
+butleradm bootstrap harvester --config bootstrap.yaml
+
+# Override Harvester kubeconfig via flag
+butleradm bootstrap harvester --config bootstrap.yaml \
+  --harvester-kubeconfig /path/to/harvester-kubeconfig
 
 # Dry run to validate
-butleradm bootstrap harvester \
-  --config bootstrap.yaml \
-  --harvester-kubeconfig harvester.yaml \
-  --dry-run
+butleradm bootstrap harvester --config bootstrap.yaml --dry-run
 ```
 
 **Bootstrap Config Example:**
@@ -115,14 +123,26 @@ Bootstrap Butler on Nutanix AHV.
 butleradm bootstrap nutanix [flags]
 ```
 
-**Flags:**
+**Provider Flags:**
 
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--prism-endpoint` | Prism Central endpoint | Yes |
-| `--prism-username` | Prism Central username | Yes |
-| `--prism-password` | Prism Central password | Yes |
+| Flag | Description |
+|------|-------------|
+| `--prism-endpoint` | Nutanix Prism Central endpoint (overrides config file) |
+| `--prism-username` | Nutanix Prism Central username (overrides config file) |
+| `--prism-password` | Nutanix Prism Central password (overrides config file) |
+
+**Examples:**
+
+```bash
+# Bootstrap with config file
+butleradm bootstrap nutanix --config bootstrap.yaml
+
+# Override Prism credentials via flags
+butleradm bootstrap nutanix --config bootstrap.yaml \
+  --prism-endpoint https://prism.example.com:9440 \
+  --prism-username admin \
+  --prism-password "${PRISM_PASSWORD}"
+```
 
 ### butleradm bootstrap proxmox
 
@@ -134,13 +154,105 @@ Bootstrap Butler on Proxmox VE.
 butleradm bootstrap proxmox [flags]
 ```
 
-**Flags:**
+### butleradm bootstrap gcp
 
-| Flag | Description | Required |
-|------|-------------|----------|
-| `--config` | Path to bootstrap config file | Yes |
-| `--proxmox-endpoint` | Proxmox API endpoint | Yes |
-| `--proxmox-token` | Proxmox API token | Yes |
+Bootstrap Butler on Google Cloud Platform.
+
+```bash
+butleradm bootstrap gcp [flags]
+```
+
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--credentials` | Path to GCP service account JSON key (overrides config file) |
+
+**Examples:**
+
+```bash
+# Bootstrap on GCP
+butleradm bootstrap gcp --config bootstrap.yaml
+
+# Override service account key via flag
+butleradm bootstrap gcp --config bootstrap.yaml \
+  --credentials /path/to/sa-key.json
+
+# Dry run to validate
+butleradm bootstrap gcp --config bootstrap.yaml --dry-run
+```
+
+### butleradm bootstrap aws
+
+Bootstrap Butler on Amazon Web Services.
+
+```bash
+butleradm bootstrap aws [flags]
+```
+
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--access-key-id` | AWS access key ID (overrides config file) |
+| `--secret-access-key` | AWS secret access key (overrides config file) |
+
+**Examples:**
+
+```bash
+# Bootstrap on AWS
+butleradm bootstrap aws --config bootstrap.yaml
+
+# Override AWS credentials via flags
+butleradm bootstrap aws --config bootstrap.yaml \
+  --access-key-id "${AWS_ACCESS_KEY_ID}" \
+  --secret-access-key "${AWS_SECRET_ACCESS_KEY}"
+```
+
+### butleradm bootstrap azure
+
+Bootstrap Butler on Microsoft Azure.
+
+```bash
+butleradm bootstrap azure [flags]
+```
+
+**Provider Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--client-id` | Azure service principal app ID (overrides config file) |
+| `--client-secret` | Azure service principal password (overrides config file) |
+| `--tenant-id` | Azure tenant ID (overrides config file) |
+| `--subscription-id` | Azure subscription ID (overrides config file) |
+
+**Examples:**
+
+```bash
+# Bootstrap on Azure
+butleradm bootstrap azure --config bootstrap.yaml
+
+# Override Azure credentials via flags
+butleradm bootstrap azure --config bootstrap.yaml \
+  --client-id "${AZURE_CLIENT_ID}" \
+  --client-secret "${AZURE_CLIENT_SECRET}" \
+  --tenant-id "${AZURE_TENANT_ID}" \
+  --subscription-id "${AZURE_SUBSCRIPTION_ID}"
+```
+
+### Bootstrap Config Reference
+
+The bootstrap config file is a ClusterBootstrap resource. See the [ClusterBootstrap CRD reference](../crds/clusterbootstrap.md) for the full spec. Key sections:
+
+| Section | Purpose | On-Prem | Cloud |
+|---------|---------|---------|-------|
+| `spec.provider` | Infrastructure provider | `harvester`, `nutanix`, `proxmox` | `gcp`, `aws`, `azure` |
+| `spec.cluster` | Topology, node sizing | Required | Required |
+| `spec.network.vip` | Control plane VIP | Recommended (kube-vip requires it) | Not needed (LB endpoint used) |
+| `spec.network.loadBalancerPool` | MetalLB IP range | Recommended | Not needed |
+| `spec.talos` | Talos version, schematic, install disk | Required | Required |
+| `spec.addons` | Platform addons | All available | kube-vip and MetalLB not installed |
+| `spec.controlPlaneExposure` | Tenant API server exposure | Optional | Optional |
 
 ---
 
