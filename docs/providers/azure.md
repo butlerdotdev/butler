@@ -1,5 +1,7 @@
 # Azure Provider Guide
 
+> **Status: In Progress.** Cloud provider support is in active development. The CRD types, bootstrap controller integration, and CLI commands are implemented. The provider controller (`butler-provider-azure`) is not yet released. This guide describes the target architecture.
+
 This guide covers setting up Butler with Microsoft Azure as the infrastructure provider for management cluster bootstrap.
 
 ## Table of Contents
@@ -397,7 +399,7 @@ az ad sp credential reset --id APP_ID
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- end-to-end bootstrap sequence
-- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) -- full spec reference
-- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) -- cloud LB provisioning
-- [ProviderConfig CRD](../reference/crds/providerconfig.md) -- provider credentials
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
+- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) - full spec reference
+- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) - cloud LB provisioning
+- [ProviderConfig CRD](../reference/crds/providerconfig.md) - provider credentials

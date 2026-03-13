@@ -96,9 +96,9 @@ Built by [Butler Labs](https://butlerlabs.dev) to solve the problem we kept seei
 | **Harvester HCI** | On-Premises | Stable | 1.28 - 1.31 |
 | **Nutanix AHV** | On-Premises | Stable | 1.28 - 1.31 |
 | **Proxmox VE** | On-Premises | In Progress | - |
+| **GCP** | Cloud | Beta | 1.28 - 1.31 |
 | **AWS** | Cloud | In Progress | - |
 | **Azure** | Cloud | In Progress | - |
-| **GCP** | Cloud | In Progress | - |
 
 See [Provider Guides](docs/providers/) for detailed setup instructions.
 

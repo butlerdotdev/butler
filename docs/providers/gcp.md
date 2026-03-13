@@ -1,5 +1,7 @@
 # GCP Provider Guide
 
+> **Status: Beta.** GCP bootstrap has been E2E validated with LoadBalancerRequest HA. The CRD types, bootstrap controller integration, CLI commands, and provider controller are implemented.
+
 This guide covers setting up Butler with Google Cloud Platform as the infrastructure provider for management cluster bootstrap.
 
 ## Table of Contents
@@ -359,7 +361,7 @@ The service account needs `roles/compute.admin` or a custom role with permission
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- end-to-end bootstrap sequence
-- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) -- full spec reference
-- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) -- cloud LB provisioning
-- [ProviderConfig CRD](../reference/crds/providerconfig.md) -- provider credentials
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
+- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) - full spec reference
+- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) - cloud LB provisioning
+- [ProviderConfig CRD](../reference/crds/providerconfig.md) - provider credentials

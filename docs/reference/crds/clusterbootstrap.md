@@ -540,8 +540,8 @@ spec:
 
 ## See Also
 
-- [LoadBalancerRequest](./loadbalancerrequest.md) -- cloud control plane load balancer
-- [MachineRequest](./machinerequest.md) -- VM provisioning interface
-- [ProviderConfig](./providerconfig.md) -- infrastructure credentials
-- [Bootstrap Flow](../../architecture/bootstrap-flow.md) -- end-to-end bootstrap sequence
-- [Provider Guides](../../providers/) -- per-provider setup instructions
+- [LoadBalancerRequest](./loadbalancerrequest.md) - cloud control plane load balancer
+- [MachineRequest](./machinerequest.md) - VM provisioning interface
+- [ProviderConfig](./providerconfig.md) - infrastructure credentials
+- [Bootstrap Flow](../../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
+- [Provider Guides](../../providers/) - per-provider setup instructions
