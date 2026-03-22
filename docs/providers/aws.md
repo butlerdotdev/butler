@@ -266,7 +266,7 @@ butleradm bootstrap aws --config ~/.butler/bootstrap-aws.yaml
 ## Validation
 
 ```bash
-export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+export KUBECONFIG=~/.butler/butler-aws-test-kubeconfig
 
 # All nodes Ready with providerID set
 kubectl get nodes -o wide
@@ -276,19 +276,30 @@ kubectl get nodes -o jsonpath='{.items[*].spec.providerID}'
 # AWS CCM running
 kubectl get pods -n kube-system | grep cloud
 
-# Cilium healthy
+# Cilium running
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
 
-# Longhorn healthy
+# Longhorn running
 kubectl get pods -n longhorn-system
 
 # Butler Console exposed via NLB
 kubectl get svc butler-console-frontend -n butler-system
-# Should show type: LoadBalancer with an external hostname
 
-# Console accessible
+# Console accessible (use the EXTERNAL-IP from above)
 curl http://<NLB-hostname>
 ```
+
+### What You Have Now
+
+A Butler management cluster running on AWS with:
+- Talos Linux EC2 instances with Cilium CNI
+- AWS NLB fronting the Kubernetes API (HA topology)
+- AWS CCM handling LoadBalancer services
+- Longhorn distributed storage
+- Steward for hosted tenant control planes
+- Butler controller, CRDs, and web console exposed via NLB
+
+To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
 
 ---
 

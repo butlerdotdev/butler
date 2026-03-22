@@ -257,29 +257,40 @@ butleradm bootstrap gcp --config ~/.butler/bootstrap-gcp.yaml
 ## Validation
 
 ```bash
-export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+export KUBECONFIG=~/.butler/butler-gcp-test-kubeconfig
 
 # All nodes Ready with providerID set
 kubectl get nodes -o wide
 kubectl get nodes -o jsonpath='{.items[*].spec.providerID}'
 # Expected format: gce://<project>/<zone>/<instance-name>
 
-# GCP CCM DaemonSet running (embedded manifest, not Helm)
+# GCP CCM DaemonSet running (embedded manifest)
 kubectl get ds -n kube-system | grep cloud
 
-# Cilium healthy
+# Cilium running
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
 
-# Longhorn healthy
+# Longhorn running
 kubectl get pods -n longhorn-system
 
 # Butler Console exposed via GCP load balancer
 kubectl get svc butler-console-frontend -n butler-system
-# Should show type: LoadBalancer with an external IP
 
-# Console accessible
+# Console accessible (use the EXTERNAL-IP from above)
 curl http://<LB-IP>
 ```
+
+### What You Have Now
+
+A Butler management cluster running on GCP with:
+- Talos Linux GCE instances with Cilium CNI
+- GCP TCP load balancer fronting the Kubernetes API (HA topology)
+- GCP CCM handling LoadBalancer services
+- Longhorn distributed storage
+- Steward for hosted tenant control planes
+- Butler controller, CRDs, and web console exposed via GCP LB
+
+To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
 
 ---
 

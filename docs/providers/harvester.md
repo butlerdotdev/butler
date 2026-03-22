@@ -100,12 +100,12 @@ In Harvester Dashboard > Networks > Create:
 
 | Field | Value |
 |-------|-------|
-| Name | workloads |
+| Name | vlan40-workloads |
 | Namespace | default |
 | VLAN ID | 40 |
 | Cluster Network | mgmt |
 
-**Result:** `default/workloads` network name.
+**Result:** `default/vlan40-workloads` network name.
 
 ### 2. Upload Talos Image
 
@@ -295,11 +295,22 @@ kubectl get svc butler-console-frontend -n butler-system
 ### Console Credentials
 
 ```bash
-# Get the admin password
 kubectl get secret butler-console-admin -n butler-system \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
 # Username: admin
 ```
+
+### What You Have Now
+
+A Butler management cluster running on Harvester with:
+- Talos Linux nodes with Cilium CNI
+- kube-vip providing a floating VIP for the Kubernetes API
+- MetalLB and Traefik handling LoadBalancer and Ingress services
+- Longhorn distributed storage
+- Steward for hosted tenant control planes
+- Butler controller, CRDs, and web console
+
+To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
 
 ---
 

@@ -271,15 +271,27 @@ butleradm bootstrap nutanix \
 ```bash
 export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
 
-kubectl get nodes                                    # All nodes Ready
+kubectl get nodes
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
 kubectl get pods -n longhorn-system
 kubectl get pods -n cert-manager
 kubectl get pods -n steward-system
 kubectl get crd | grep butler
-ping 10.127.14.29                                    # VIP responds
-kubectl get svc -n traefik-system                    # LB IP assigned
+ping 10.127.14.29
+kubectl get svc -n traefik-system
 ```
+
+### What You Have Now
+
+A Butler management cluster running on Nutanix with:
+- Talos Linux VMs with Cilium CNI
+- kube-vip providing a floating VIP for the Kubernetes API
+- MetalLB and Traefik handling LoadBalancer and Ingress services
+- Longhorn distributed storage
+- Steward for hosted tenant control planes
+- Butler controller, CRDs, and web console
+
+To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
 
 ---
 

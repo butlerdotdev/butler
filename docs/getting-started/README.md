@@ -1,47 +1,46 @@
 # Getting Started with Butler
 
-Install Butler and bootstrap a management cluster.
+Butler is a Kubernetes-as-a-Service platform. It provisions and manages tenant Kubernetes clusters across on-prem and cloud infrastructure from a single management cluster.
+
+This page covers installing the CLI, bootstrapping a management cluster, and creating your first tenant cluster.
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
 - [Install CLI](#install-cli)
-- [Bootstrap Management Cluster](#bootstrap-management-cluster)
-- [Create Your First Cluster](#create-your-first-cluster)
-- [Next Steps](#next-steps)
+- [Bootstrap a Management Cluster](#bootstrap-a-management-cluster)
+- [Create Your First Tenant Cluster](#create-your-first-tenant-cluster)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Prerequisites
 
-### Required
-
 | Requirement | Description |
 |-------------|-------------|
-| Docker | For running the temporary KIND bootstrap cluster |
+| Docker | Runs the temporary KIND bootstrap cluster |
 | kubectl | Kubernetes CLI (1.28+) |
-| Infrastructure | Harvester, Nutanix, AWS, GCP, or Azure account |
-| Network | IP addresses for control plane VIP and LoadBalancer pool (on-prem only) |
+| Infrastructure | One of: Harvester, Nutanix, AWS, GCP, or Azure |
 
-### Infrastructure-Specific
+Each infrastructure provider has additional prerequisites (credentials, networking, VM images). Follow the provider guide for your infrastructure **before** running bootstrap:
 
-**For On-Prem (Harvester, Nutanix):**
-- Infrastructure API access (Harvester kubeconfig or Prism Central credentials)
-- VM network configured with DHCP or static IPs
-- Talos Linux image uploaded to the infrastructure
-- A VIP address reserved for the control plane endpoint
-- An IP range for MetalLB LoadBalancer services
+| Provider | Guide |
+|----------|-------|
+| Harvester | [Harvester Provider Guide](../providers/harvester.md) |
+| Nutanix | [Nutanix Provider Guide](../providers/nutanix.md) |
+| AWS | [AWS Provider Guide](../providers/aws.md) |
+| GCP | [GCP Provider Guide](../providers/gcp.md) |
+| Azure | [Azure Provider Guide](../providers/azure.md) |
 
-**For Cloud (AWS, GCP, Azure):**
-- Cloud account with compute and networking permissions
-- VPC/VNet with a subnet and firewall/security group rules
-- Talos Linux image available in the target region (AMI, GCE image, or Azure gallery image)
-
-See [Provider Guides](../providers/) for detailed per-provider setup.
+Each provider guide walks through prerequisites, infrastructure setup, config creation, running bootstrap, and validation. Once your management cluster is running, come back here to create your first tenant cluster.
 
 ---
 
 ## Install CLI
+
+Butler ships two CLI binaries:
+- `butleradm` -- platform administration (bootstrap, provider management)
+- `butlerctl` -- tenant operations (create clusters, get kubeconfigs)
 
 ### macOS / Linux (Homebrew)
 
@@ -52,17 +51,13 @@ brew install butlerdotdev/tap/butler
 ### macOS / Linux (Direct Download)
 
 ```bash
-# Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 [[ "$ARCH" == "x86_64" ]] && ARCH="amd64"
 [[ "$ARCH" == "aarch64" ]] && ARCH="arm64"
 
-# Download latest release
 curl -sLO "https://github.com/butlerdotdev/butler-cli/releases/latest/download/butler_${OS}_${ARCH}.tar.gz"
 tar xzf butler_${OS}_${ARCH}.tar.gz
-
-# Install
 sudo mv butleradm butlerctl /usr/local/bin/
 ```
 
@@ -90,109 +85,75 @@ butlerctl version
 
 ---
 
-## Bootstrap Management Cluster
+## Bootstrap a Management Cluster
 
-### 1. Create Bootstrap Configuration
+Bootstrap creates a management cluster on your infrastructure. The process takes 15-30 minutes and produces:
 
-Create a YAML config file for `butleradm`. This example uses Harvester. See [Provider Guides](../providers/) for AWS, GCP, Azure, and Nutanix configs.
+- A Kubernetes cluster running Talos Linux
+- Cilium CNI, Longhorn storage, cert-manager
+- Steward for hosted tenant control planes
+- Butler CRDs, controller, and console
+- On-prem: kube-vip (control plane HA) + MetalLB + Traefik (ingress)
+- Cloud: Cloud Controller Manager + cloud load balancers
 
-```yaml
-provider: harvester
+### 1. Follow Your Provider Guide
 
-cluster:
-  name: butler-hvstr-test
-  topology: single-node
-  controlPlane:
-    replicas: 1
-    cpu: 4
-    memoryMB: 8192
-    diskGB: 50
-    extraDisks:
-      - sizeGB: 50
+Each provider guide includes the full config file, infrastructure setup steps, and the bootstrap command. Pick your provider:
 
-network:
-  podCIDR: 10.244.0.0/16
-  serviceCIDR: 10.96.0.0/12
-  vip: 10.40.0.230
-  loadBalancerPool:
-    start: 10.40.0.240
-    end: 10.40.0.250
+- [Harvester](../providers/harvester.md) -- on-prem, Harvester HCI
+- [Nutanix](../providers/nutanix.md) -- on-prem, Nutanix AHV
+- [AWS](../providers/aws.md) -- cloud, Amazon Web Services
+- [GCP](../providers/gcp.md) -- cloud, Google Cloud Platform
+- [Azure](../providers/azure.md) -- cloud, Microsoft Azure
 
-talos:
-  version: v1.12.1
-  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+### 2. What Bootstrap Does
 
-addons:
-  cni:
-    type: cilium
-  storage:
-    type: longhorn
-  loadBalancer:
-    type: metallb
-  console:
-    enabled: true
-    ingress:
-      enabled: true
-      className: traefik
-
-providerConfig:
-  harvester:
-    kubeconfigPath: ~/.butler/harvester-kubeconfig
-    namespace: default
-    networkName: default/vlan40-workloads
-    imageName: default/image-5rs6d
+```
+butleradm bootstrap <provider> --config ~/.butler/bootstrap-<provider>.yaml
 ```
 
-Save this as `~/.butler/bootstrap.yaml`.
-
-Every config field and its defaults are documented in the [Bootstrap Config Reference](../reference/bootstrap-config.md).
-
-### 2. Run Bootstrap
-
-```bash
-butleradm bootstrap harvester --config ~/.butler/bootstrap.yaml
-```
+1. Creates a temporary KIND cluster on your machine
+2. Deploys Butler bootstrap controller and provider controller into KIND
+3. Provisions VMs on your infrastructure
+4. Generates and applies Talos Linux configs to each node
+5. Bootstraps Kubernetes on the first control plane node
+6. Installs platform addons (Cilium, cert-manager, Longhorn, Steward, Butler, Console)
+7. Saves kubeconfig to `~/.butler/<cluster-name>-kubeconfig`
+8. Deletes the KIND cluster
 
 Available flags:
 
 | Flag | Description |
 |------|-------------|
-| `--config <path>` | Path to the bootstrap config YAML (required) |
+| `--config <path>` | Path to bootstrap config YAML (required) |
 | `--no-tui` | Disable interactive TUI, use line-by-line log output |
 | `--skip-cleanup` | Keep the KIND cluster after bootstrap for debugging |
 | `--local` | Build controller images from local source (development) |
 | `--provider-image <image>` | Override the provider controller container image |
 
-This will:
-1. Create a temporary KIND cluster on your machine
-2. Deploy Butler CRDs, bootstrap controller, and provider controller into KIND
-3. Provision VMs on your infrastructure
-4. Generate and apply Talos Linux configs to each node
-5. Bootstrap Kubernetes on the first control plane node
-6. Install addons (Cilium, cert-manager, Longhorn, MetalLB, Steward, Butler, Console)
-7. Save kubeconfig and talosconfig to `~/.butler/`
-8. Delete the KIND cluster (unless `--skip-cleanup`)
+### 3. After Bootstrap
 
-**Expected duration:** 15-30 minutes.
-
-### 3. Verify Installation
+The kubeconfig is saved as `~/.butler/<cluster-name>-kubeconfig`. The cluster name comes from `cluster.name` in your config file.
 
 ```bash
-export KUBECONFIG=~/.butler/butler-hvstr-test-kubeconfig
+# Example: if cluster.name is "butler-mgmt"
+export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
 
 kubectl get nodes
 kubectl get pods -n butler-system
-kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
-kubectl get pods -n longhorn-system
-kubectl get pods -n cert-manager
-kubectl get pods -n steward-system
 ```
+
+The provider guide for your infrastructure includes a full validation checklist. Complete that before continuing.
 
 ---
 
-## Create Your First Cluster
+## Create Your First Tenant Cluster
 
-### 1. Create a Team (Optional)
+After your management cluster is running and validated, create a tenant cluster.
+
+### 1. Create a Team
+
+Teams are the multi-tenancy boundary in Butler. Each team gets its own namespace.
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -211,7 +172,7 @@ EOF
 
 ### 2. Create a Tenant Cluster
 
-Using CLI:
+Using the CLI:
 
 ```bash
 butlerctl cluster create my-first-cluster \
@@ -276,43 +237,10 @@ kubectl get pods -A
 
 ## Next Steps
 
-### Install Console
-
-Access Butler via a web UI:
-
-```bash
-helm install butler-console oci://ghcr.io/butlerdotdev/charts/butler-console \
-  -n butler-system \
-  --set ingress.enabled=true \
-  --set ingress.host=butler.example.com
-```
-
-### Enable GitOps
-
-Manage clusters declaratively via Git:
-
-```bash
-# Install Flux (if not already installed)
-flux bootstrap github \
-  --owner=myorg \
-  --repository=butler-clusters \
-  --path=clusters/butler-mgmt
-```
-
-### Add Monitoring
-
-Install observability stack:
-
-```bash
-butlerctl addon install prometheus --cluster my-first-cluster
-```
-
-### Read More
-
-- [Architecture](../architecture/) - Understand how Butler works
-- [Operations Guide](../operations/) - Day-2 operations
-- [Provider Guides](../providers/) - Infrastructure-specific setup
-- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
+- [Architecture](../architecture/) -- how Butler works internally
+- [Operations Guide](../operations/) -- day-2 operations
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) -- every config field documented
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- detailed bootstrap sequence
 
 ---
 
@@ -321,10 +249,10 @@ butlerctl addon install prometheus --cluster my-first-cluster
 ### Bootstrap Fails
 
 ```bash
-# Use --skip-cleanup to keep KIND cluster for debugging
-butleradm bootstrap harvester --config bootstrap.yaml --skip-cleanup
+# Re-run with --skip-cleanup to keep KIND cluster for debugging
+butleradm bootstrap <provider> --config <path> --skip-cleanup
 
-# Then inspect the bootstrap state from the KIND context:
+# Inspect bootstrap state from the KIND context:
 kubectl --context kind-butler-bootstrap get clusterbootstrap -n butler-system
 kubectl --context kind-butler-bootstrap get machinerequest -n butler-system
 kubectl --context kind-butler-bootstrap logs -n butler-system deploy/butler-bootstrap-controller
@@ -333,23 +261,15 @@ kubectl --context kind-butler-bootstrap logs -n butler-system deploy/butler-boot
 ### Cluster Stuck in Provisioning
 
 ```bash
-# Check TenantCluster status
 kubectl describe tenantcluster my-first-cluster -n dev-team
-
-# Check CAPI resources
 kubectl get cluster,machinedeployment,machine -A
-
-# Check Steward control plane
 kubectl get tenantcontrolplane -A
 ```
 
 ### Worker Nodes Not Joining
 
 ```bash
-# Check MachineDeployment
 kubectl describe machinedeployment my-first-cluster-workers -n dev-team
-
-# Check Machine status
 kubectl get machine -l cluster.x-k8s.io/cluster-name=my-first-cluster -A
 ```
 
