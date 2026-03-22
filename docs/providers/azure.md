@@ -1,8 +1,8 @@
 # Azure Provider Guide
 
-> **Status: Beta.** Azure bootstrap has been E2E validated for single-node. HA validation is blocked by public IP quota limits on restricted subscriptions.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
 
-This guide covers bootstrapping a Butler management cluster on Microsoft Azure.
+Bootstrap a Butler management cluster on Microsoft Azure.
 
 ## Table of Contents
 
@@ -204,22 +204,23 @@ Create a config file at `~/.butler/bootstrap-azure.yaml`:
 
 ### Single-Node
 
+This config was used for E2E validation. Replace credentials, resource group, VNet, NSG, and image URN with your values.
+
 ```yaml
 provider: azure
 
 cluster:
-  name: butler-mgmt
+  name: butler-azure-test
   topology: single-node
   controlPlane:
     replicas: 1
     cpu: 4
-    memoryMB: 16384           # 16 GB
+    memoryMB: 16384
     diskGB: 100
 
 network:
   podCIDR: "10.244.0.0/16"
   serviceCIDR: "10.96.0.0/12"
-  # No vip or loadBalancerPool for cloud providers
 
 talos:
   version: v1.12.5
@@ -232,17 +233,17 @@ addons:
 
 providerConfig:
   azure:
-    clientID: "00000000-0000-0000-0000-000000000000"        # Service principal app ID
-    clientSecret: "your-client-secret"                        # Service principal password
-    tenantID: "00000000-0000-0000-0000-000000000000"         # Azure AD tenant ID
-    subscriptionID: "00000000-0000-0000-0000-000000000000"   # Azure subscription ID
-    resourceGroup: "butler-rg"                                # Pre-existing resource group
-    location: "eastus"                                        # Azure region
-    vnetName: "butler-vnet"                                   # Pre-existing VNet name
-    subnetName: "default"                                     # Subnet within the VNet
-    securityGroupName: "butler-nsg"                           # Pre-existing NSG name (required)
-    vmSize: "Standard_D4s_v3"                                 # VM size
-    imageURN: "/subscriptions/.../providers/Microsoft.Compute/galleries/.../images/.../versions/1.12.5"
+    clientID: "YOUR_SERVICE_PRINCIPAL_APP_ID"
+    clientSecret: "YOUR_SERVICE_PRINCIPAL_PASSWORD"
+    tenantID: "YOUR_AZURE_AD_TENANT_ID"
+    subscriptionID: "YOUR_SUBSCRIPTION_ID"
+    resourceGroup: "butler-bootstrap-rg"
+    location: "eastus"
+    vnetName: "butler-bootstrap-vnet"
+    subnetName: "default"
+    securityGroupName: "butler-bootstrap-nsg"
+    vmSize: "Standard_DC4s_v3"
+    imageURN: "/subscriptions/YOUR_SUB_ID/resourceGroups/butler-bootstrap-rg/providers/Microsoft.Compute/galleries/butlerImageGallery/images/talos-linux/versions/1.12.5"
 ```
 
 ### HA
@@ -251,7 +252,7 @@ providerConfig:
 provider: azure
 
 cluster:
-  name: butler-mgmt
+  name: butler-azure-ha
   topology: ha
   controlPlane:
     replicas: 3
@@ -279,23 +280,23 @@ addons:
 
 providerConfig:
   azure:
-    clientID: "00000000-0000-0000-0000-000000000000"
-    clientSecret: "your-client-secret"
-    tenantID: "00000000-0000-0000-0000-000000000000"
-    subscriptionID: "00000000-0000-0000-0000-000000000000"
-    resourceGroup: "butler-rg"
+    clientID: "YOUR_SERVICE_PRINCIPAL_APP_ID"
+    clientSecret: "YOUR_SERVICE_PRINCIPAL_PASSWORD"
+    tenantID: "YOUR_AZURE_AD_TENANT_ID"
+    subscriptionID: "YOUR_SUBSCRIPTION_ID"
+    resourceGroup: "butler-bootstrap-rg"
     location: "eastus"
-    vnetName: "butler-vnet"
+    vnetName: "butler-bootstrap-vnet"
     subnetName: "default"
-    securityGroupName: "butler-nsg"
-    vmSize: "Standard_D4s_v3"
-    imageURN: "/subscriptions/.../providers/Microsoft.Compute/galleries/.../images/.../versions/1.12.5"
+    securityGroupName: "butler-bootstrap-nsg"
+    vmSize: "Standard_DC4s_v3"
+    imageURN: "/subscriptions/YOUR_SUB_ID/resourceGroups/butler-bootstrap-rg/providers/Microsoft.Compute/galleries/butlerImageGallery/images/talos-linux/versions/1.12.5"
 ```
 
 **Required fields:**
-- `securityGroupName` is required. The Azure CCM fails with `securityGroupName is not configured` without it.
-- `imageURN` is the full ARM resource ID for the Talos image (managed image or gallery image version).
-- `vmSize` selects the Azure VM SKU. Not all SKUs support all security types.
+- `securityGroupName` -- the Azure CCM fails with `securityGroupName is not configured` without it.
+- `imageURN` -- full ARM resource ID. Managed image or Shared Image Gallery version.
+- `vmSize` -- Azure VM SKU. The E2E test used `Standard_DC4s_v3`.
 
 ---
 

@@ -16,9 +16,9 @@ Butler supports multiple infrastructure providers for provisioning management an
 
 | Provider | Platform | Status | Documentation |
 |----------|----------|--------|---------------|
-| GCP | Google Cloud Platform | Beta | [gcp.md](gcp.md) |
+| GCP | Google Cloud Platform | Stable | [gcp.md](gcp.md) |
 | AWS | Amazon Web Services | Stable | [aws.md](aws.md) |
-| Azure | Microsoft Azure | Beta | [azure.md](azure.md) |
+| Azure | Microsoft Azure | Stable | [azure.md](azure.md) |
 
 ## Provider Architecture
 

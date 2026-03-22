@@ -1,6 +1,6 @@
 # Getting Started with Butler
 
-This guide walks you through installing Butler and creating your first management cluster.
+Install Butler and bootstrap a management cluster.
 
 ## Table of Contents
 
@@ -94,34 +94,29 @@ butlerctl version
 
 ### 1. Create Bootstrap Configuration
 
-Create a YAML config file for `butleradm`. This example uses Harvester as the infrastructure provider. See [Provider Guides](../providers/) for AWS, GCP, Azure, and Nutanix configs.
+Create a YAML config file for `butleradm`. This example uses Harvester. See [Provider Guides](../providers/) for AWS, GCP, Azure, and Nutanix configs.
 
 ```yaml
 provider: harvester
 
 cluster:
-  name: butler-mgmt
-  topology: ha              # "ha" (3 CP + workers) or "single-node" (1 node)
+  name: butler-hvstr-test
+  topology: single-node
   controlPlane:
-    replicas: 3
-    cpu: 4
-    memoryMB: 8192
-    diskGB: 50
-  workers:
-    replicas: 2
+    replicas: 1
     cpu: 4
     memoryMB: 8192
     diskGB: 50
     extraDisks:
-      - sizeGB: 50           # Additional disk for Longhorn storage
+      - sizeGB: 50
 
 network:
   podCIDR: 10.244.0.0/16
   serviceCIDR: 10.96.0.0/12
-  vip: 10.40.0.200           # Control plane VIP (on-prem only)
-  loadBalancerPool:           # MetalLB IP range (on-prem only)
-    start: 10.40.0.210
-    end: 10.40.0.220
+  vip: 10.40.0.230
+  loadBalancerPool:
+    start: 10.40.0.240
+    end: 10.40.0.250
 
 talos:
   version: v1.12.1
@@ -144,13 +139,13 @@ providerConfig:
   harvester:
     kubeconfigPath: ~/.butler/harvester-kubeconfig
     namespace: default
-    networkName: default/workloads
-    imageName: default/talos-image
+    networkName: default/vlan40-workloads
+    imageName: default/image-5rs6d
 ```
 
 Save this as `~/.butler/bootstrap.yaml`.
 
-For a full list of every config field and its defaults, see the [Bootstrap Config Reference](../reference/bootstrap-config.md).
+Every config field and its defaults are documented in the [Bootstrap Config Reference](../reference/bootstrap-config.md).
 
 ### 2. Run Bootstrap
 
@@ -178,21 +173,15 @@ This will:
 7. Save kubeconfig and talosconfig to `~/.butler/`
 8. Delete the KIND cluster (unless `--skip-cleanup`)
 
-**Expected duration:** 15-30 minutes depending on infrastructure and network speed.
+**Expected duration:** 15-30 minutes.
 
 ### 3. Verify Installation
 
 ```bash
-# Set kubeconfig to the new management cluster
-export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+export KUBECONFIG=~/.butler/butler-hvstr-test-kubeconfig
 
-# Check nodes
 kubectl get nodes
-
-# Check Butler components
 kubectl get pods -n butler-system
-
-# Check platform addons
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
 kubectl get pods -n longhorn-system
 kubectl get pods -n cert-manager

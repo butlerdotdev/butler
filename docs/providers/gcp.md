@@ -1,8 +1,8 @@
 # GCP Provider Guide
 
-> **Status: Beta.** GCP bootstrap has been E2E validated for both single-node and HA topologies.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
 
-This guide covers bootstrapping a Butler management cluster on Google Cloud Platform.
+Bootstrap a Butler management cluster on Google Cloud Platform.
 
 ## Table of Contents
 
@@ -161,11 +161,13 @@ Create a config file at `~/.butler/bootstrap-gcp.yaml`:
 
 ### Single-Node
 
+This config was used for E2E validation. Replace `projectID`, `imageProject`, and `serviceAccountKeyPath` with your values.
+
 ```yaml
 provider: gcp
 
 cluster:
-  name: butler-mgmt
+  name: butler-gcp-test
   topology: single-node
   controlPlane:
     replicas: 1
@@ -176,7 +178,6 @@ cluster:
 network:
   podCIDR: 10.244.0.0/16
   serviceCIDR: 10.96.0.0/12
-  # No vip or loadBalancerPool for cloud providers
 
 talos:
   version: v1.12.5
@@ -189,15 +190,14 @@ addons:
 
 providerConfig:
   gcp:
-    serviceAccountKeyPath: ~/.butler/gcp-sa-key.json   # Path to SA key JSON
-    projectID: your-project-id                          # GCP project ID
-    region: us-central1                                 # GCP region
-    zone: us-central1-a                                 # GCP zone (default: {region}-a)
-    network: default                                    # VPC network name
-    subnetwork: default                                 # Subnet name
-    imageProject: your-project-id                       # Project containing the Talos image
-    image: talos-v1-12-5-iscsi                          # GCE image name
-    # machineType: n2-standard-4                        # Optional: override VM type
+    serviceAccountKeyPath: ~/.butler/gcp-sa-key.json
+    projectID: your-gcp-project-id
+    region: us-central1
+    zone: us-central1-a
+    network: default
+    subnetwork: default
+    imageProject: your-gcp-project-id
+    image: talos-v1-12-5-iscsi
 ```
 
 ### HA
@@ -206,7 +206,7 @@ providerConfig:
 provider: gcp
 
 cluster:
-  name: butler-mgmt
+  name: butler-gcp-ha
   topology: ha
   controlPlane:
     replicas: 3
@@ -235,12 +235,12 @@ addons:
 providerConfig:
   gcp:
     serviceAccountKeyPath: ~/.butler/gcp-sa-key.json
-    projectID: your-project-id
+    projectID: your-gcp-project-id
     region: us-central1
     zone: us-central1-a
     network: default
     subnetwork: default
-    imageProject: your-project-id
+    imageProject: your-gcp-project-id
     image: talos-v1-12-5-iscsi
 ```
 

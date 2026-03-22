@@ -4,9 +4,9 @@ This document describes how Butler bootstraps a management cluster from scratch,
 
 ## Overview
 
-Bootstrapping creates a new Butler management cluster on your infrastructure. The process uses a temporary [KIND](https://kind.sigs.k8s.io/) cluster to orchestrate the bootstrap, then cleans up after completion.
+The bootstrap process creates a Butler management cluster from scratch. A temporary [KIND](https://kind.sigs.k8s.io/) cluster orchestrates the bootstrap, then is deleted on completion.
 
-Butler supports two deployment models:
+Two deployment models:
 
 - **On-prem** (Harvester, Nutanix, Proxmox): Uses kube-vip for control plane HA with a floating virtual IP. MetalLB provides LoadBalancer services.
 - **Cloud** (GCP, AWS, Azure): Uses a cloud-native L4 load balancer for control plane HA. Cloud load balancers handle services natively.

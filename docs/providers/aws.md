@@ -1,8 +1,8 @@
 # AWS Provider Guide
 
-> **Status: Stable.** AWS bootstrap has been E2E validated for both single-node and HA topologies.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
 
-This guide covers bootstrapping a Butler management cluster on Amazon Web Services.
+Bootstrap a Butler management cluster on Amazon Web Services.
 
 ## Table of Contents
 
@@ -166,22 +166,23 @@ Create a config file at `~/.butler/bootstrap-aws.yaml`:
 
 ### Single-Node
 
+This config was used for E2E validation. Replace credentials, VPC, subnet, and security group with your values.
+
 ```yaml
 provider: aws
 
 cluster:
-  name: butler-mgmt
+  name: butler-aws-test
   topology: single-node
   controlPlane:
     replicas: 1
     cpu: 4
-    memoryMB: 16384           # 16 GB
+    memoryMB: 16384
     diskGB: 100
 
 network:
   podCIDR: "10.244.0.0/16"
   serviceCIDR: "10.96.0.0/12"
-  # No vip or loadBalancerPool for cloud providers
 
 talos:
   version: v1.12.2
@@ -194,14 +195,12 @@ addons:
 
 providerConfig:
   aws:
-    accessKeyID: "AKIAIOSFODNN7EXAMPLE"        # IAM access key
-    secretAccessKey: "wJalrXUtnFEMI/K7MDENG..."  # IAM secret key
-    region: "us-east-1"                          # AWS region
-    vpcID: "vpc-0123456789abcdef0"               # VPC ID
-    subnetID: "subnet-0123456789abcdef0"         # Public subnet ID
-    securityGroupID: "sg-0123456789abcdef0"      # Security group ID
-    # instanceType: "m5.xlarge"                  # Optional: override (default: m5.xlarge)
-    # ami: "ami-0123456789abcdef0"               # Optional: custom AMI
+    accessKeyID: "YOUR_ACCESS_KEY_ID"
+    secretAccessKey: "YOUR_SECRET_ACCESS_KEY"
+    region: "us-east-1"
+    vpcID: "vpc-016fee01a86ae92f9"
+    subnetID: "subnet-08f5cc7e6f53c7c03"
+    securityGroupID: "sg-0f5d6bb6a232d8af0"
 ```
 
 ### HA
@@ -210,7 +209,7 @@ providerConfig:
 provider: aws
 
 cluster:
-  name: butler-mgmt
+  name: butler-aws-ha
   topology: ha
   controlPlane:
     replicas: 3
@@ -238,21 +237,21 @@ addons:
 
 providerConfig:
   aws:
-    accessKeyID: "AKIAIOSFODNN7EXAMPLE"
-    secretAccessKey: "wJalrXUtnFEMI/K7MDENG..."
+    accessKeyID: "YOUR_ACCESS_KEY_ID"
+    secretAccessKey: "YOUR_SECRET_ACCESS_KEY"
     region: "us-east-1"
-    vpcID: "vpc-0123456789abcdef0"
-    subnetID: "subnet-0123456789abcdef0"
-    securityGroupID: "sg-0123456789abcdef0"
+    vpcID: "vpc-016fee01a86ae92f9"
+    subnetID: "subnet-08f5cc7e6f53c7c03"
+    securityGroupID: "sg-0f5d6bb6a232d8af0"
 ```
 
-### Cloud vs On-Prem Differences
+### Cloud vs On-Prem
 
-- No `vip` field: cloud providers use a load balancer instead of kube-vip
-- No `loadBalancerPool` field: cloud providers do not use MetalLB
-- kube-vip, MetalLB, and Traefik are automatically skipped during addon installation
-- The AWS CCM is installed instead, handling `type: LoadBalancer` services natively
-- The Butler Console is exposed as a `type: LoadBalancer` service with an NLB annotation
+- No `vip` field -- cloud providers use a load balancer, not kube-vip
+- No `loadBalancerPool` field -- cloud providers do not use MetalLB
+- kube-vip, MetalLB, and Traefik are skipped during addon installation
+- The AWS CCM handles `type: LoadBalancer` services
+- The Butler Console is exposed as `type: LoadBalancer` with an NLB annotation
 
 ---
 

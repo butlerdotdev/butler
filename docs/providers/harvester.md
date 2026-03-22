@@ -1,6 +1,8 @@
 # Harvester Provider Guide
 
-This guide covers bootstrapping a Butler management cluster on [Harvester HCI](https://harvesterhci.io/) and running tenant clusters on Harvester infrastructure.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
+
+Bootstrap a Butler management cluster on [Harvester HCI](https://harvesterhci.io/).
 
 ## Table of Contents
 
@@ -85,8 +87,8 @@ Reserve the following IPs on your VLAN. These must not overlap with DHCP ranges,
 
 | Purpose | Example | Notes |
 |---------|---------|-------|
-| Control plane VIP | 10.40.0.200 | Single IP, used by kube-vip for API HA |
-| MetalLB pool | 10.40.0.210-10.40.0.220 | Range for LoadBalancer services (Traefik, tenant endpoints) |
+| Control plane VIP | 10.40.0.230 | Single IP, used by kube-vip for API HA |
+| MetalLB pool | 10.40.0.240-10.40.0.250 | Range for LoadBalancer services (Traefik, tenant endpoints) |
 
 ---
 
@@ -134,83 +136,31 @@ kubectl --kubeconfig ~/.butler/harvester-kubeconfig get nodes
 
 Create a config file at `~/.butler/bootstrap-harvester.yaml`:
 
-### Single-Node (Development)
+### Single-Node
+
+This config was used for E2E validation. Replace VIP, loadBalancerPool, networkName, and imageName with values from your Harvester environment.
 
 ```yaml
 provider: harvester
 
 cluster:
-  name: butler-mgmt
-  topology: single-node       # Single CP node that also runs workloads
+  name: butler-hvstr-test
+  topology: single-node
   controlPlane:
     replicas: 1
-    cpu: 4                    # vCPUs per node
-    memoryMB: 8192            # Memory in MB (8 GB)
-    diskGB: 50                # Boot disk size in GB
-    extraDisks:
-      - sizeGB: 50            # Additional disk for Longhorn storage
-
-network:
-  podCIDR: 10.244.0.0/16     # Pod network CIDR (default)
-  serviceCIDR: 10.96.0.0/12  # Service network CIDR (default)
-  vip: 10.40.0.200           # Control plane VIP address
-  loadBalancerPool:           # MetalLB IP range for LoadBalancer services
-    start: 10.40.0.210
-    end: 10.40.0.220
-
-talos:
-  version: v1.12.1
-  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
-
-addons:
-  cni:
-    type: cilium              # CNI with kube-proxy replacement
-  storage:
-    type: longhorn            # Distributed persistent storage
-  loadBalancer:
-    type: metallb             # L2 LoadBalancer for on-prem
-  console:
-    enabled: true
-    ingress:
-      enabled: true
-      className: traefik
-
-providerConfig:
-  harvester:
-    kubeconfigPath: ~/.butler/harvester-kubeconfig  # Path to Harvester kubeconfig
-    namespace: default                                # Harvester namespace for VMs
-    networkName: default/workloads                    # VLAN network (namespace/name)
-    imageName: default/talos-v1-12-1                  # Talos image (namespace/name)
-```
-
-### HA (Production)
-
-```yaml
-provider: harvester
-
-cluster:
-  name: butler-mgmt
-  topology: ha
-  controlPlane:
-    replicas: 3               # 3 control plane nodes for HA
-    cpu: 4
-    memoryMB: 8192
-    diskGB: 50
-  workers:
-    replicas: 2               # Separate worker nodes
     cpu: 4
     memoryMB: 8192
     diskGB: 50
     extraDisks:
-      - sizeGB: 50            # Longhorn storage disk on workers
+      - sizeGB: 50
 
 network:
   podCIDR: 10.244.0.0/16
   serviceCIDR: 10.96.0.0/12
-  vip: 10.40.0.200
+  vip: 10.40.0.230
   loadBalancerPool:
-    start: 10.40.0.210
-    end: 10.40.0.220
+    start: 10.40.0.240
+    end: 10.40.0.250
 
 talos:
   version: v1.12.1
@@ -233,8 +183,62 @@ providerConfig:
   harvester:
     kubeconfigPath: ~/.butler/harvester-kubeconfig
     namespace: default
-    networkName: default/workloads
-    imageName: default/talos-v1-12-1
+    networkName: default/vlan40-workloads
+    imageName: default/image-5rs6d
+```
+
+### HA
+
+```yaml
+provider: harvester
+
+cluster:
+  name: butler-hvstr-ha
+  topology: ha
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+  workers:
+    replicas: 2
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+    extraDisks:
+      - sizeGB: 50
+
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.40.0.231
+  loadBalancerPool:
+    start: 10.40.0.240
+    end: 10.40.0.250
+
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  harvester:
+    kubeconfigPath: ~/.butler/harvester-kubeconfig
+    namespace: default
+    networkName: default/vlan40-workloads
+    imageName: default/image-5rs6d
 ```
 
 ---
@@ -245,45 +249,41 @@ providerConfig:
 butleradm bootstrap harvester --config ~/.butler/bootstrap-harvester.yaml
 ```
 
-For development with local controller builds:
+For development:
 
 ```bash
 butleradm bootstrap harvester \
   --config ~/.butler/bootstrap-harvester.yaml \
-  --local \
-  --no-tui \
-  --skip-cleanup
+  --local --no-tui --skip-cleanup
 ```
 
 ---
 
 ## Validation
 
-After bootstrap completes, verify the management cluster:
-
 ```bash
-export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+export KUBECONFIG=~/.butler/butler-hvstr-test-kubeconfig
 
-# All nodes should be Ready
+# All nodes Ready
 kubectl get nodes
 
-# Cilium CNI running
+# Cilium running
 kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
 
-# Longhorn storage healthy
+# Longhorn running
 kubectl get pods -n longhorn-system
 
 # cert-manager running
 kubectl get pods -n cert-manager
 
-# Steward (hosted control planes) running
+# Steward running
 kubectl get pods -n steward-system
 
 # Butler CRDs installed
 kubectl get crd | grep butler
 
 # kube-vip responding on VIP
-ping 10.40.0.200
+ping 10.40.0.230
 
 # MetalLB pool active, Traefik has a LoadBalancer IP
 kubectl get svc -n traefik-system
@@ -305,14 +305,12 @@ kubectl get secret butler-console-admin -n butler-system \
 
 ## Cleanup
 
-To tear down a bootstrapped cluster:
-
 ```bash
-# Delete the KIND bootstrap cluster (if --skip-cleanup was used)
+# Delete KIND bootstrap cluster (if --skip-cleanup was used)
 kind delete cluster --name butler-bootstrap
 
-# Delete Harvester VMs via the Harvester Dashboard or API
-# Navigate to Virtual Machines, select the VMs named <cluster>-cp-* and <cluster>-w-*, delete them
+# Delete Harvester VMs via the Harvester Dashboard:
+# Virtual Machines > select butler-hvstr-test-cp-* and butler-hvstr-test-w-* > Actions > Delete
 ```
 
 ---

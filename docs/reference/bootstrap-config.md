@@ -1,8 +1,8 @@
 # Bootstrap Config Reference
 
-Complete field reference for `butleradm bootstrap` configuration files.
+Field reference for `butleradm bootstrap` configuration files.
 
-The bootstrap config is a plain YAML file passed to `butleradm bootstrap <provider> --config <path>`. The CLI parses it via Viper into Go structs defined in `butler-cli/internal/adm/bootstrap/orchestrator/config.go`.
+The config is a plain YAML file passed to `butleradm bootstrap <provider> --config <path>`. The CLI parses it into Go structs defined in `butler-cli/internal/adm/bootstrap/orchestrator/config.go`.
 
 ---
 
@@ -64,7 +64,7 @@ The bootstrap config is a plain YAML file passed to `butleradm bootstrap <provid
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `talos.version` | string | No | `v1.9.0` | Talos Linux version |
+| `talos.version` | string | No | `v1.12.1` | Talos Linux version |
 | `talos.schematic` | string | No | -- | Talos Image Factory schematic ID. Determines which extensions are included in the image (e.g., iscsi-tools, qemu-guest-agent). |
 
 ---
@@ -193,7 +193,7 @@ When a field is omitted, these defaults are applied:
 | `cluster.topology` | `ha` |
 | `network.podCIDR` | `10.244.0.0/16` |
 | `network.serviceCIDR` | `10.96.0.0/12` |
-| `talos.version` | `v1.9.0` |
+| `talos.version` | `v1.12.1` |
 | `addons.cni.type` | `cilium` |
 | `addons.storage.type` | `longhorn` |
 | `addons.loadBalancer.type` | `metallb` |

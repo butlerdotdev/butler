@@ -1,6 +1,8 @@
 # Nutanix Provider Guide
 
-This guide covers bootstrapping a Butler management cluster on [Nutanix AHV](https://www.nutanix.com/products/ahv) and running tenant clusters on Nutanix infrastructure.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
+
+Bootstrap a Butler management cluster on [Nutanix AHV](https://www.nutanix.com/products/ahv).
 
 ## Table of Contents
 
@@ -259,9 +261,7 @@ For development:
 ```bash
 butleradm bootstrap nutanix \
   --config ~/.butler/bootstrap-nutanix.yaml \
-  --local \
-  --no-tui \
-  --skip-cleanup
+  --local --no-tui --skip-cleanup
 ```
 
 ---
