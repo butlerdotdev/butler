@@ -1,6 +1,6 @@
 # Getting Started with Butler
 
-This guide walks you through installing Butler and creating your first tenant cluster.
+This guide walks you through installing Butler and creating your first management cluster.
 
 ## Table of Contents
 
@@ -18,25 +18,26 @@ This guide walks you through installing Butler and creating your first tenant cl
 
 | Requirement | Description |
 |-------------|-------------|
-| Docker | For running the bootstrap process |
+| Docker | For running the temporary KIND bootstrap cluster |
 | kubectl | Kubernetes CLI (1.28+) |
-| Infrastructure | Harvester, Nutanix, or other supported provider |
-| Network | IP addresses for control plane and LoadBalancer |
+| Infrastructure | Harvester, Nutanix, AWS, GCP, or Azure account |
+| Network | IP addresses for control plane VIP and LoadBalancer pool (on-prem only) |
 
 ### Infrastructure-Specific
 
-**For Harvester:**
-- Harvester cluster with API access
-- Harvester kubeconfig file
-- VM network configured
-- Talos Linux image uploaded
+**For On-Prem (Harvester, Nutanix):**
+- Infrastructure API access (Harvester kubeconfig or Prism Central credentials)
+- VM network configured with DHCP or static IPs
+- Talos Linux image uploaded to the infrastructure
+- A VIP address reserved for the control plane endpoint
+- An IP range for MetalLB LoadBalancer services
 
-**For Nutanix:**
-- Prism Central access
-- Subnet and cluster configuration
-- Cloud image uploaded
+**For Cloud (AWS, GCP, Azure):**
+- Cloud account with compute and networking permissions
+- VPC/VNet with a subnet and firewall/security group rules
+- Talos Linux image available in the target region (AMI, GCE image, or Azure gallery image)
 
-See [Provider Guides](../providers/) for detailed setup.
+See [Provider Guides](../providers/) for detailed per-provider setup.
 
 ---
 
@@ -93,88 +94,96 @@ butlerctl version
 
 ### 1. Create Bootstrap Configuration
 
-Create a file named `bootstrap.yaml`:
+Create a YAML config file for `butleradm`. This example uses Harvester as the infrastructure provider. See [Provider Guides](../providers/) for AWS, GCP, Azure, and Nutanix configs.
 
 ```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ClusterBootstrap
-metadata:
+provider: harvester
+
+cluster:
   name: butler-mgmt
-  namespace: butler-system
-spec:
-  provider: harvester  # or nutanix
-  
-  cluster:
-    name: butler-mgmt
-    controlPlaneEndpoint: 10.40.0.200  # Your VIP
-    kubernetesVersion: "v1.31.0"
-    topology: ha  # ha or single-node
-    
-    controlPlane:
-      replicas: 3
-      machineTemplate:
-        cpu: 4
-        memory: 16Gi
-        diskSize: 100Gi
+  topology: ha              # "ha" (3 CP + workers) or "single-node" (1 node)
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+  workers:
+    replicas: 2
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+    extraDisks:
+      - sizeGB: 50           # Additional disk for Longhorn storage
 
-    workers:
-      replicas: 3
-      machineTemplate:
-        cpu: 8
-        memory: 32Gi
-        diskSize: 200Gi
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.40.0.200           # Control plane VIP (on-prem only)
+  loadBalancerPool:           # MetalLB IP range (on-prem only)
+    start: 10.40.0.210
+    end: 10.40.0.220
 
-  networking:
-    podCIDR: 10.244.0.0/16
-    serviceCIDR: 10.96.0.0/12
-    
-  platform:
-    cni: cilium
-    storage: longhorn
-    loadBalancer: metallb
-    metalLBPool: 10.40.0.200-10.40.0.250
-    
-  providerConfig:
-    harvester:
-      credentialsRef:
-        name: harvester-kubeconfig
-      namespace: default
-      networkName: default/workloads
-      imageName: default/talos-1.9
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  harvester:
+    kubeconfigPath: ~/.butler/harvester-kubeconfig
+    namespace: default
+    networkName: default/workloads
+    imageName: default/talos-image
 ```
 
-### 2. Prepare Provider Credentials
+Save this as `~/.butler/bootstrap.yaml`.
 
-**For Harvester:**
+For a full list of every config field and its defaults, see the [Bootstrap Config Reference](../reference/bootstrap-config.md).
+
+### 2. Run Bootstrap
 
 ```bash
-# Create credentials secret file
-kubectl create secret generic harvester-kubeconfig \
-  --from-file=kubeconfig=/path/to/harvester-kubeconfig.yaml \
-  --dry-run=client -o yaml > harvester-secret.yaml
+butleradm bootstrap harvester --config ~/.butler/bootstrap.yaml
 ```
 
-### 3. Run Bootstrap
+Available flags:
 
-```bash
-butleradm bootstrap harvester \
-  --config bootstrap.yaml \
-  --credentials harvester-secret.yaml
-```
+| Flag | Description |
+|------|-------------|
+| `--config <path>` | Path to the bootstrap config YAML (required) |
+| `--no-tui` | Disable interactive TUI, use line-by-line log output |
+| `--skip-cleanup` | Keep the KIND cluster after bootstrap for debugging |
+| `--local` | Build controller images from local source (development) |
+| `--provider-image <image>` | Override the provider controller container image |
 
 This will:
-1. Create a temporary KIND cluster
-2. Deploy Butler controllers
-3. Provision management cluster VMs
-4. Install platform components
-5. Save kubeconfig and clean up
+1. Create a temporary KIND cluster on your machine
+2. Deploy Butler CRDs, bootstrap controller, and provider controller into KIND
+3. Provision VMs on your infrastructure
+4. Generate and apply Talos Linux configs to each node
+5. Bootstrap Kubernetes on the first control plane node
+6. Install addons (Cilium, cert-manager, Longhorn, MetalLB, Steward, Butler, Console)
+7. Save kubeconfig and talosconfig to `~/.butler/`
+8. Delete the KIND cluster (unless `--skip-cleanup`)
 
-**Expected duration:** 15-30 minutes depending on infrastructure.
+**Expected duration:** 15-30 minutes depending on infrastructure and network speed.
 
-### 4. Verify Installation
+### 3. Verify Installation
 
 ```bash
-# Set kubeconfig
+# Set kubeconfig to the new management cluster
 export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
 
 # Check nodes
@@ -182,6 +191,12 @@ kubectl get nodes
 
 # Check Butler components
 kubectl get pods -n butler-system
+
+# Check platform addons
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
+kubectl get pods -n longhorn-system
+kubectl get pods -n cert-manager
+kubectl get pods -n steward-system
 ```
 
 ---
@@ -308,6 +323,7 @@ butlerctl addon install prometheus --cluster my-first-cluster
 - [Architecture](../architecture/) - Understand how Butler works
 - [Operations Guide](../operations/) - Day-2 operations
 - [Provider Guides](../providers/) - Infrastructure-specific setup
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
 
 ---
 
@@ -316,11 +332,12 @@ butlerctl addon install prometheus --cluster my-first-cluster
 ### Bootstrap Fails
 
 ```bash
-# Check bootstrap logs
-butleradm bootstrap harvester --config bootstrap.yaml --verbose
+# Use --skip-cleanup to keep KIND cluster for debugging
+butleradm bootstrap harvester --config bootstrap.yaml --skip-cleanup
 
-# Keep KIND cluster for debugging
-butleradm bootstrap harvester --config bootstrap.yaml --keep-kind
+# Then inspect the bootstrap state from the KIND context:
+kubectl --context kind-butler-bootstrap get clusterbootstrap -n butler-system
+kubectl --context kind-butler-bootstrap get machinerequest -n butler-system
 kubectl --context kind-butler-bootstrap logs -n butler-system deploy/butler-bootstrap-controller
 ```
 
