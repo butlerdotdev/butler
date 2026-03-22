@@ -58,10 +58,9 @@ sequenceDiagram
     end
 
     rect rgb(230, 245, 255)
-        Note over Bootstrap,Infra: Phase 2: Image Sync + VM Provisioning
+        Note over Bootstrap,Infra: Phase 2: VM Provisioning
         Bootstrap->>Bootstrap: Watch ClusterBootstrap
-        Bootstrap->>KIND: Create ImageSync CR (sync Talos image to provider)
-        Bootstrap->>Bootstrap: Wait for ImageSync Ready
+        Note over Bootstrap: ImageSync: skipped (no ButlerConfig in KIND)
         Bootstrap->>Provider: Create MachineRequest CRs
         Provider->>Infra: Create VMs
         Infra-->>Provider: VMs running with IPs
@@ -129,9 +128,8 @@ sequenceDiagram
     end
 
     rect rgb(230, 245, 255)
-        Note over Bootstrap,Cloud: Phase 2: Image Sync + Infrastructure Provisioning
-        Bootstrap->>KIND: Create ImageSync CR (sync Talos image to provider)
-        Bootstrap->>Bootstrap: Wait for ImageSync Ready
+        Note over Bootstrap,Cloud: Phase 2: Infrastructure Provisioning
+        Note over Bootstrap: ImageSync: skipped (no ButlerConfig in KIND)
         Bootstrap->>KIND: Create LoadBalancerRequest CR
         Bootstrap->>Provider: Create MachineRequest CRs
         Provider->>Cloud: Provision cloud load balancer resources
@@ -218,11 +216,11 @@ Internally:
 - Clean separation between orchestration and infrastructure
 - Can preserve for debugging with `--skip-cleanup`
 
-### Phase 2: Image Sync + VM Provisioning
+### Phase 2: VM Provisioning
 
-Before creating VMs, the bootstrap controller creates an `ImageSync` CR to sync the Talos OS image to the infrastructure provider via Butler Image Factory. ImageSync uses deduplication labels (`schematic-id`, `image-version`, `image-arch`, `provider-config`) so multiple bootstraps referencing the same schematic reuse a single synced image.
+The bootstrap controller calls `reconcileImageSync()` before creating VMs. This step creates an `ImageSync` CR to sync the Talos image to the infrastructure provider via Butler Image Factory. However, ImageSync requires a `ButlerConfig` resource with `spec.imageFactory.url` configured. During initial `butleradm bootstrap`, no ButlerConfig exists in the KIND cluster, so ImageSync is silently skipped. Images must be pre-uploaded to the infrastructure provider (see each provider guide for image upload steps).
 
-After ImageSync reaches `Ready`, the bootstrap controller creates MachineRequest CRs for each node defined in the ClusterBootstrap spec. The provider controller watches these resources, creates VMs, and reports IP addresses.
+The bootstrap controller then creates MachineRequest CRs for each node defined in the ClusterBootstrap spec. The provider controller watches these resources, creates VMs, and reports IP addresses.
 
 ```yaml
 apiVersion: butler.butlerlabs.dev/v1alpha1
