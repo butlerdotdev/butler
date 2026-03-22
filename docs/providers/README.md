@@ -17,8 +17,8 @@ Butler supports multiple infrastructure providers for provisioning management an
 | Provider | Platform | Status | Documentation |
 |----------|----------|--------|---------------|
 | GCP | Google Cloud Platform | Beta | [gcp.md](gcp.md) |
-| AWS | Amazon Web Services | In Progress | [aws.md](aws.md) |
-| Azure | Microsoft Azure | In Progress | [azure.md](azure.md) |
+| AWS | Amazon Web Services | Stable | [aws.md](aws.md) |
+| Azure | Microsoft Azure | Beta | [azure.md](azure.md) |
 
 ## Provider Architecture
 
@@ -116,7 +116,7 @@ spec:
     endpoint: "https://harvester.example.com"
     namespace: default
     networkName: default/workloads
-    imageName: default/talos-1.9
+    imageName: default/talos-v1-12-1
 ```
 
 ## Adding a New Provider
