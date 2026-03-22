@@ -1,38 +1,44 @@
 # Nutanix Provider Guide
 
-This guide covers setting up Butler with [Nutanix AHV](https://www.nutanix.com/products/ahv) as the infrastructure provider.
+This guide covers bootstrapping a Butler management cluster on [Nutanix AHV](https://www.nutanix.com/products/ahv) and running tenant clusters on Nutanix infrastructure.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Nutanix Setup](#nutanix-setup)
-- [Butler Configuration](#butler-configuration)
+- [Bootstrap Configuration](#bootstrap-configuration)
+- [Run Bootstrap](#run-bootstrap)
+- [Validation](#validation)
+- [Cleanup](#cleanup)
+- [Tenant Clusters on Nutanix](#tenant-clusters-on-nutanix)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-Butler uses [CAPX (Cluster API Provider Nutanix)](https://github.com/nutanix-cloud-native/cluster-api-provider-nutanix) to provision VMs on Nutanix AHV via Prism Central.
+Butler uses a thin provider controller (`butler-provider-nutanix`) during bootstrap to provision VMs on Nutanix AHV via the Prism Central API. After the management cluster is running, the CAPI Nutanix Provider (CAPX) manages tenant cluster worker VM lifecycle.
 
 ```mermaid
 flowchart LR
-    Butler["Butler Controller"] --> CAPI["Cluster API"]
-    CAPI --> CAPX["CAPX Provider"]
-    CAPX --> PC["Prism Central"]
+    CLI["butleradm"] --> KIND["KIND Cluster"]
+    KIND --> Bootstrap["butler-bootstrap"]
+    KIND --> Provider["butler-provider-nutanix"]
+    Bootstrap --> MR["MachineRequest CRs"]
+    Provider --> PC["Prism Central"]
     PC --> PE["Prism Element"]
-    PE --> VMs["Virtual Machines"]
+    PE --> VMs["Talos Linux VMs"]
 ```
 
 ### Key Components
 
 | Component | Purpose |
 |-----------|---------|
-| butler-provider-nutanix | Translates MachineRequests to Nutanix VMs |
-| CAPX | Creates NutanixMachine resources |
-| Prism Central | Nutanix management plane |
-| Prism Element | Per-cluster hypervisor management |
+| butler-provider-nutanix | Provisions Nutanix VMs from MachineRequest CRs during bootstrap |
+| CAPI Nutanix Provider (CAPX) | Manages tenant cluster worker VMs after bootstrap |
+| kube-vip | Floating VIP for control plane HA |
+| MetalLB | LoadBalancer service implementation for on-prem |
 
 ---
 
@@ -43,78 +49,256 @@ flowchart LR
 - Nutanix AOS 5.20+ or 6.x
 - Prism Central 2023.x or later
 - Admin credentials for Prism Central
-- Network connectivity from Butler to Prism Central (port 9440)
+- Network connectivity from the bootstrap machine to Prism Central on port 9440
 
-### Required Resources
+### Required Resource IDs
 
-| Resource | Purpose |
-|----------|---------|
-| Subnet | Network for cluster nodes |
-| VM Image | OS image (uploaded to Prism Central) |
-| Cluster | Target Nutanix cluster for VMs |
-| Categories (optional) | For VM organization |
+Before writing the config, collect these UUIDs from Prism Central:
+
+| Resource | Where to Find | Config Field |
+|----------|---------------|-------------|
+| Cluster UUID | Compute & Storage > Clusters > select cluster > URL contains UUID | `clusterUUID` |
+| Subnet UUID | Network & Security > Subnets > select subnet > URL contains UUID | `subnetUUID` |
+| Image UUID | Compute & Storage > Images > select image > URL contains UUID | `imageUUID` |
+| Storage Container UUID (optional) | Storage > Storage Containers | `storageContainerUUID` |
+
+### VM Image
+
+Upload a Talos Linux qcow2 image to Prism Central. The image must include the `iscsi-tools` extension for Longhorn storage.
+
+Download from the Talos Image Factory:
+
+```
+https://factory.talos.dev/image/dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586/v1.12.1/nutanix-amd64.qcow2
+```
+
+Upload via Prism Central > Compute & Storage > Images > Add Image.
+
+### Network
+
+The subnet must provide connectivity for:
+- Outbound internet (Talos image pulls, Helm chart downloads)
+- L2 ARP (kube-vip and MetalLB require it)
+- DHCP or static IP assignment
+
+### IP Planning
+
+| Purpose | Example | Notes |
+|---------|---------|-------|
+| Control plane VIP | 10.127.14.29 | Single IP, used by kube-vip for API HA |
+| MetalLB pool | 10.127.14.30-10.127.14.50 | Range for LoadBalancer services |
+
+These must not overlap with DHCP ranges or other cluster allocations.
 
 ---
 
 ## Nutanix Setup
 
-### 1. Upload VM Image
+### 1. Upload Talos Image
 
-#### Via Prism Central UI
+In Prism Central > Compute & Storage > Images > Add Image:
 
-1. Navigate to Compute & Storage -> Images
-2. Click "Add Image"
-3. Select image source:
-   - URL: Direct download link
-   - Upload: Local file
+| Field | Value |
+|-------|-------|
+| Name | talos-v1-12-1 |
+| Image Type | DISK |
+| Source | URL or file upload |
+| URL | `https://factory.talos.dev/.../v1.12.1/nutanix-amd64.qcow2` |
 
-#### Talos Linux Image
-
-```bash
-# Download Talos Nutanix image
-curl -LO https://github.com/siderolabs/talos/releases/download/v1.9.0/nutanix-amd64.qcow2
-```
-
-Upload with name: `talos-1.9`
-
-#### Rocky Linux Image
-
-Download Rocky Linux cloud image:
-```bash
-curl -LO https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
-```
-
-Upload with name: `rocky-9-cloud`
+Note the image UUID from the URL after creation.
 
 ### 2. Identify Subnet
 
-In Prism Central -> Network & Security -> Subnets
+In Prism Central > Network & Security > Subnets.
 
 Note the subnet name and UUID for your workload network.
 
 ### 3. Identify Cluster
 
-In Prism Central -> Compute & Storage -> Clusters
+In Prism Central > Compute & Storage > Clusters.
 
-Note the cluster name and UUID where VMs will be created.
+Note the cluster UUID where VMs will be created.
 
 ### 4. Create Service Account (Recommended)
 
-For production, create a dedicated service account:
+For production, create a dedicated Prism Central user with appropriate roles:
 
-1. Prism Central -> Administration -> Users
-2. Create local user with appropriate roles
-3. Or configure AD/LDAP integration
-
-Required roles:
-- Cluster Admin (for target clusters)
-- Or custom role with VM create/delete permissions
+1. Prism Central > Administration > Users > Create Local User
+2. Assign Cluster Admin role for the target clusters
 
 ---
 
-## Butler Configuration
+## Bootstrap Configuration
 
-### 1. Create Credentials Secret
+Create a config file at `~/.butler/bootstrap-nutanix.yaml`:
+
+### Single-Node (Development)
+
+```yaml
+provider: nutanix
+
+cluster:
+  name: butler-mgmt
+  topology: single-node
+  controlPlane:
+    replicas: 1
+    cpu: 4                    # vCPUs per node
+    memoryMB: 8192            # Memory in MB (8 GB)
+    diskGB: 50                # Boot disk size in GB
+    extraDisks:
+      - sizeGB: 100           # Additional disk for Longhorn storage
+
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.127.14.29           # Control plane VIP
+  loadBalancerPool:            # MetalLB IP range
+    start: 10.127.14.30
+    end: 10.127.14.50
+
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  nutanix:
+    endpoint: https://prism-central.example.com   # Prism Central URL
+    port: 9440                                      # API port (default: 9440)
+    insecure: false                                 # Set true for self-signed certs
+    username: butler-admin                          # Prism Central username
+    password: your-password                         # Prism Central password
+    clusterUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # Target Nutanix cluster
+    subnetUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"   # VM network subnet
+    imageUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"    # Talos image UUID
+    # storageContainerUUID: "..."                   # Optional: storage container for disks
+    # hostAliases:                                  # Optional: /etc/hosts entries for KIND
+    #   - "10.0.0.1 prism-central.internal"         # Useful for corporate DNS/Zscaler
+```
+
+### HA (Production)
+
+```yaml
+provider: nutanix
+
+cluster:
+  name: butler-mgmt
+  topology: ha
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+  workers:
+    replicas: 2
+    cpu: 8
+    memoryMB: 8192
+    diskGB: 100
+    extraDisks:
+      - sizeGB: 200
+
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.127.14.29
+  loadBalancerPool:
+    start: 10.127.14.30
+    end: 10.127.14.50
+
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  nutanix:
+    endpoint: https://prism-central.example.com
+    port: 9440
+    insecure: false
+    username: butler-admin
+    password: your-password
+    clusterUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    subnetUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    imageUUID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
+
+---
+
+## Run Bootstrap
+
+```bash
+butleradm bootstrap nutanix --config ~/.butler/bootstrap-nutanix.yaml
+```
+
+For development:
+
+```bash
+butleradm bootstrap nutanix \
+  --config ~/.butler/bootstrap-nutanix.yaml \
+  --local \
+  --no-tui \
+  --skip-cleanup
+```
+
+---
+
+## Validation
+
+```bash
+export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+
+kubectl get nodes                                    # All nodes Ready
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
+kubectl get pods -n longhorn-system
+kubectl get pods -n cert-manager
+kubectl get pods -n steward-system
+kubectl get crd | grep butler
+ping 10.127.14.29                                    # VIP responds
+kubectl get svc -n traefik-system                    # LB IP assigned
+```
+
+---
+
+## Cleanup
+
+```bash
+kind delete cluster --name butler-bootstrap
+
+# Delete VMs via Prism Central UI:
+# Compute & Storage > VMs > select butler-mgmt-* VMs > Actions > Delete
+```
+
+---
+
+## Tenant Clusters on Nutanix
+
+After bootstrap, configure Nutanix as a provider for tenant clusters:
+
+### Create Credentials Secret
 
 ```bash
 kubectl create secret generic nutanix-credentials \
@@ -126,7 +310,7 @@ kubectl create secret generic nutanix-credentials \
   -n butler-system
 ```
 
-### 2. Create ProviderConfig Resource
+### Create ProviderConfig
 
 ```yaml
 apiVersion: butler.butlerlabs.dev/v1alpha1
@@ -135,95 +319,23 @@ metadata:
   name: nutanix-prod
   namespace: butler-system
 spec:
-  type: nutanix
+  provider: nutanix
+  credentialsRef:
+    name: nutanix-credentials
+    namespace: butler-system
+  network:
+    mode: ipam
   nutanix:
-    credentialsRef:
-      name: nutanix-credentials
     prismCentral:
       address: prism-central.example.com
       port: 9440
       insecure: false
     cluster:
       name: cluster-01
-      # Or use UUID:
-      # uuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
     subnet:
       name: workload-subnet
-      # Or use UUID:
-      # uuid: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
     image:
-      name: talos-1.9
-```
-
-### 3. Set as Default Provider
-
-Update ButlerConfig:
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ButlerConfig
-metadata:
-  name: butler
-spec:
-  defaultProviderConfigRef:
-    name: nutanix-prod
-```
-
----
-
-## Network Configuration
-
-### VIP for Control Plane
-
-Reserve a static IP for the control plane VIP:
-
-```yaml
-# In ClusterBootstrap for management cluster
-spec:
-  cluster:
-    controlPlaneEndpoint: 10.127.14.29
-```
-
-kube-vip uses the `ens3` interface for Nutanix VMs.
-
-### MetalLB Pool
-
-Allocate IPs for LoadBalancer services:
-
-```yaml
-# ButlerConfig or per-cluster
-spec:
-  platform:
-    metalLBPool: "10.127.14.30-10.127.14.50"
-```
-
----
-
-## Resource Specifications
-
-### Management Cluster Recommendations
-
-| Role | vCPUs | Memory | Disk | Count |
-|------|-------|--------|------|-------|
-| Control Plane | 4 | 16GB | 100GB | 3 (HA) |
-| Worker | 8 | 32GB | 200GB | 0-3 |
-
-### Tenant Cluster Defaults
-
-| Role | vCPUs | Memory | Disk |
-|------|-------|--------|------|
-| Worker | 4 | 8GB | 40GB |
-
-Override in TenantCluster spec:
-
-```yaml
-spec:
-  workers:
-    replicas: 3
-    machineTemplate:
-      cpu: 8
-      memory: 16Gi
-      disk: 100Gi
+      name: talos-v1-12-1
 ```
 
 ---
@@ -232,86 +344,61 @@ spec:
 
 ### Authentication Failures
 
-**Verify credentials:**
+**Symptom**: Provider controller logs show 401 or authentication errors.
+
 ```bash
-# Test Prism Central API
-curl -k -u admin:password https://prism-central.example.com:9440/api/nutanix/v3/clusters/list \
+# Test Prism Central API directly
+curl -k -u admin:password \
+  https://prism-central.example.com:9440/api/nutanix/v3/clusters/list \
   -H "Content-Type: application/json" \
   -d '{"length": 10}'
 ```
 
-**Check secret:**
-```bash
-kubectl get secret nutanix-credentials -n butler-system -o yaml
-```
-
-### VM Not Creating
-
-**Check CAPX controller logs:**
-```bash
-kubectl logs -n capx-system deploy/capx-controller-manager -f
-```
-
-**Check NutanixMachine status:**
-```bash
-kubectl get nutanixmachine -A
-kubectl describe nutanixmachine <n> -n <namespace>
-```
-
-### Network Issues
-
-**Verify subnet exists:**
-```bash
-# Via API
-curl -k -u admin:password https://prism-central.example.com:9440/api/nutanix/v3/subnets/list \
-  -H "Content-Type: application/json" \
-  -d '{"length": 100}'
-```
-
-**Check VM network config:**
-- Verify DHCP is configured on subnet
-- Or use static IP assignment in machine config
-
-### Image Issues
-
-**Verify image exists:**
-```bash
-# Via API
-curl -k -u admin:password https://prism-central.example.com:9440/api/nutanix/v3/images/list \
-  -H "Content-Type: application/json" \
-  -d '{"length": 100}'
-```
-
-**Check image type:**
-- Must be DISK image, not ISO
-- qcow2 or raw format
-
 ### Certificate Issues
 
-If using self-signed certificates:
+**Symptom**: TLS handshake errors in provider controller logs.
+
+For self-signed certificates, set `insecure: true` in the config. For production, add the CA certificate to the trust chain.
+
+### DNS Resolution / Zscaler
+
+**Symptom**: KIND container cannot resolve Prism Central hostname.
+
+The KIND bootstrap cluster runs inside a Docker container and may not have access to corporate DNS servers or Zscaler-proxied endpoints. Use the `hostAliases` field to inject `/etc/hosts` entries into the KIND node:
 
 ```yaml
-spec:
+providerConfig:
   nutanix:
-    prismCentral:
-      insecure: true  # For testing only
+    hostAliases:
+      - "10.0.0.1 prism-central.internal.corp.com"
 ```
 
-For production, add CA certificate to trust store.
+### VMs Not Creating
 
----
+**Check:**
+```bash
+kubectl --context kind-butler-bootstrap logs -n butler-system deploy/butler-provider-nutanix
+kubectl --context kind-butler-bootstrap get machinerequest -n butler-system
+```
 
-## CAPX Version Compatibility
+**Common causes:**
+- Wrong cluster UUID, subnet UUID, or image UUID
+- Image type is ISO instead of DISK (must be qcow2 or raw)
+- Insufficient resources on the Nutanix cluster
+- Subnet does not have IP addresses available
+
+### CAPX Version Compatibility
 
 | Butler Version | CAPX Version | Nutanix AOS |
 |----------------|--------------|-------------|
-| 0.1.x | 1.4.x | 5.20+, 6.x |
+| 0.1.x+ | 1.4.x | 5.20+, 6.x |
 
 ---
 
 ## See Also
 
-- [Getting Started](../getting-started/) - Bootstrap guide
-- [Architecture](../architecture/) - System design
-- [Harvester Provider](harvester.md) - Alternative provider
+- [Getting Started](../getting-started/) - Quick start guide
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
+- [Harvester Provider](harvester.md) - Alternative on-prem provider
 - [CAPX Documentation](https://opendocs.nutanix.com/capx/latest/)
