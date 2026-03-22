@@ -1,27 +1,27 @@
 # AWS Provider Guide
 
-> **Status: In Progress.** Cloud provider support is in active development. The CRD types, bootstrap controller integration, and CLI commands are implemented. The provider controller (`butler-provider-aws`) is not yet released. This guide describes the target architecture.
+> **Status: Stable.** AWS bootstrap has been E2E validated for both single-node and HA topologies.
 
-This guide covers setting up Butler with Amazon Web Services as the infrastructure provider for management cluster bootstrap.
+This guide covers bootstrapping a Butler management cluster on Amazon Web Services.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [AWS Setup](#aws-setup)
-- [Butler Configuration](#butler-configuration)
-- [Network Architecture](#network-architecture)
-- [Load Balancer Resources](#load-balancer-resources)
-- [Resource Recommendations](#resource-recommendations)
+- [Bootstrap Configuration](#bootstrap-configuration)
+- [Run Bootstrap](#run-bootstrap)
+- [Validation](#validation)
+- [Cleanup](#cleanup)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-Butler uses a thin provider controller (`butler-provider-aws`) to provision EC2 instances running Talos Linux. The controller creates instances in the specified VPC/subnet and reports their IPs back to the bootstrap controller.
+Butler uses a thin provider controller (`butler-provider-aws`) to provision EC2 instances running Talos Linux. For HA topologies, the provider also creates a Network Load Balancer (NLB) to front the control plane.
 
-For control plane HA, the bootstrap controller creates a LoadBalancerRequest, and the AWS provider provisions a Network Load Balancer (NLB) with a TCP target group and listener on port 6443.
+After bootstrap, the AWS Cloud Controller Manager (CCM) runs on the management cluster in service-controller-only mode, handling `type: LoadBalancer` services (including the Butler Console).
 
 ```mermaid
 flowchart LR
@@ -34,44 +34,65 @@ flowchart LR
     AWSProvider --> NLB["Network Load Balancer"]
 ```
 
-### Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| butler-provider-aws | Provisions EC2 instances and NLB resources |
-| CAPI AWS Provider (CAPA) | Manages tenant cluster worker instances after bootstrap |
-
 ---
 
 ## Prerequisites
 
 ### AWS Account
 
-- An AWS account with access to the target region
-- EC2 and Elastic Load Balancing APIs enabled
+An AWS account with access to the target region. EC2 and Elastic Load Balancing APIs must be enabled.
 
-### IAM User or Role
+### IAM Permissions
 
-An IAM user (or role) with permissions for:
-- EC2: instances, security groups, key pairs, AMIs, EBS volumes
-- Elastic Load Balancing v2: NLBs, target groups, listeners
-- VPC: subnets, route tables (read-only)
+An IAM user (or role) with the following permissions:
 
-A suitable managed policy combination:
-- `AmazonEC2FullAccess`
-- `ElasticLoadBalancingFullAccess`
+**EC2:**
+- `ec2:RunInstances`
+- `ec2:DescribeInstances`
+- `ec2:TerminateInstances`
+- `ec2:CreateTags`
+- `ec2:DescribeSecurityGroups`
+- `ec2:DescribeSubnets`
+- `ec2:DescribeVpcs`
+- `ec2:DescribeImages`
 
-Or use a custom IAM policy scoped to the required resources.
+**Elastic Load Balancing v2 (for HA):**
+- `elasticloadbalancing:CreateLoadBalancer`
+- `elasticloadbalancing:DeleteLoadBalancer`
+- `elasticloadbalancing:DescribeLoadBalancers`
+- `elasticloadbalancing:CreateTargetGroup`
+- `elasticloadbalancing:DeleteTargetGroup`
+- `elasticloadbalancing:RegisterTargets`
+- `elasticloadbalancing:DeregisterTargets`
+- `elasticloadbalancing:CreateListener`
+- `elasticloadbalancing:DescribeTargetHealth`
+
+Or use managed policies: `AmazonEC2FullAccess` + `ElasticLoadBalancingFullAccess`.
 
 ### Networking
 
-- A VPC with at least one public subnet (instances need reachability from the bootstrap machine)
-- A security group allowing required ports (see [Network Architecture](#network-architecture))
-- Sufficient Elastic IP quota if using static public IPs
+- A VPC with an internet gateway
+- A public subnet (instances need reachability from the KIND bootstrap cluster)
+- A security group (see [Security Group Rules](#security-group-rules) below)
 
 ### Talos AMI
 
-A Talos Linux AMI must be available in the target region. Import from the official Talos releases or use the Talos Image Factory to produce a custom AMI.
+Butler ships with pre-built Talos AMIs for common regions. If your region is not listed below, you need to import a custom AMI.
+
+**Built-in AMIs (Talos v1.12.2, schematic `613e1592b2da41ae5e265e8789429f22e121aab91cb4deb6bc3c0b6262961245`):**
+
+| Region | AMI ID |
+|--------|--------|
+| us-east-1 | `ami-0cd30b7027afffd4e` |
+| us-east-2 | `ami-0f0e7059a7735d0a0` |
+| us-west-1 | `ami-0abe7bca2fb75fced` |
+| us-west-2 | `ami-0d03dfcef2e1eee26` |
+| eu-west-1 | `ami-0c0a06de3c0c30646` |
+| eu-central-1 | `ami-06e7ff093b83a3cb0` |
+| ap-southeast-1 | `ami-088879e1d3a9b3c3e` |
+| ap-northeast-1 | `ami-0aed11a4c14c1f6b5` |
+
+These AMIs include the `iscsi-tools` and `util-linux-tools` Talos extensions. The provider auto-selects the correct AMI based on your configured region. To use a custom AMI, set the `ami` field in the config.
 
 ---
 
@@ -80,16 +101,13 @@ A Talos Linux AMI must be available in the target region. Import from the offici
 ### 1. Create IAM User
 
 ```bash
-# Create IAM user
 aws iam create-user --user-name butler-bootstrap
 
-# Attach required policies
 aws iam attach-user-policy --user-name butler-bootstrap \
   --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess
 aws iam attach-user-policy --user-name butler-bootstrap \
   --policy-arn arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
 
-# Create access key
 aws iam create-access-key --user-name butler-bootstrap
 ```
 
@@ -98,207 +116,201 @@ Save the `AccessKeyId` and `SecretAccessKey` from the output.
 ### 2. Create Security Group
 
 ```bash
-# Create security group
 SG_ID=$(aws ec2 create-security-group \
   --group-name butler-bootstrap \
   --description "Butler bootstrap cluster" \
   --vpc-id vpc-XXXXX \
   --query 'GroupId' --output text)
 
-# Allow inter-node traffic (self-referencing)
-aws ec2 authorize-security-group-ingress --group-id $SG_ID \
-  --protocol tcp --port 6443 --source-group $SG_ID
-aws ec2 authorize-security-group-ingress --group-id $SG_ID \
-  --protocol tcp --port 50000-50001 --source-group $SG_ID
-aws ec2 authorize-security-group-ingress --group-id $SG_ID \
-  --protocol tcp --port 2379-2380 --source-group $SG_ID
-aws ec2 authorize-security-group-ingress --group-id $SG_ID \
-  --protocol tcp --port 10250 --source-group $SG_ID
-
-# Allow kube-apiserver access from anywhere (for LB and external access)
+# Kubernetes API (external access + NLB health checks)
 aws ec2 authorize-security-group-ingress --group-id $SG_ID \
   --protocol tcp --port 6443 --cidr 0.0.0.0/0
 
-# Allow SSH (optional, for debugging)
+# Talos API (node-to-node)
 aws ec2 authorize-security-group-ingress --group-id $SG_ID \
-  --protocol tcp --port 22 --cidr YOUR_IP/32
-```
+  --protocol tcp --port 50000-50001 --source-group $SG_ID
 
-### 3. Import Talos AMI (if needed)
+# etcd (node-to-node)
+aws ec2 authorize-security-group-ingress --group-id $SG_ID \
+  --protocol tcp --port 2379-2380 --source-group $SG_ID
 
-```bash
-# Download Talos AWS image
-wget https://factory.talos.dev/image/SCHEMATIC_ID/vX.Y.Z/aws-amd64.raw.xz
+# kubelet API (node-to-node)
+aws ec2 authorize-security-group-ingress --group-id $SG_ID \
+  --protocol tcp --port 10250 --source-group $SG_ID
 
-# Upload to S3 and import as AMI
-aws s3 cp talos-vX.Y.Z.raw.xz s3://BUCKET/talos-vX.Y.Z.raw.xz
+# Cilium health checks (node-to-node)
+aws ec2 authorize-security-group-ingress --group-id $SG_ID \
+  --protocol tcp --port 4240 --source-group $SG_ID
 
-aws ec2 import-image \
-  --disk-containers "Description=Talos vX.Y.Z,Format=raw,Url=s3://BUCKET/talos-vX.Y.Z.raw.xz"
-```
-
----
-
-## Butler Configuration
-
-### ProviderConfig
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: aws-credentials
-  namespace: butler-system
-type: Opaque
-stringData:
-  access-key-id: "AKIAIOSFODNN7EXAMPLE"
-  secret-access-key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
----
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: aws-prod
-  namespace: butler-system
-spec:
-  provider: aws
-  credentialsRef:
-    name: aws-credentials
-    namespace: butler-system
-  network:
-    mode: cloud
-  aws:
-    region: us-east-1
-    vpcID: vpc-0abcdef1234567890
-    subnetIDs:
-      - subnet-0abcdef1234567890
-    securityGroupIDs:
-      - sg-0abcdef1234567890
-```
-
-### Bootstrap Config
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ClusterBootstrap
-metadata:
-  name: butler-mgmt
-  namespace: butler-system
-spec:
-  provider: aws
-  providerRef:
-    name: aws-prod
-    namespace: butler-system
-
-  cluster:
-    name: butler-mgmt
-    topology: ha
-    controlPlane:
-      replicas: 3
-      cpu: 4
-      memoryMB: 16384
-      diskGB: 100
-    workers:
-      replicas: 3
-      cpu: 8
-      memoryMB: 32768
-      diskGB: 200
-
-  network:
-    podCIDR: 10.244.0.0/16
-    serviceCIDR: 10.96.0.0/12
-
-  talos:
-    version: v1.9.2
-    schematic: ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515
-
-  addons:
-    cni:
-      type: cilium
-    storage:
-      type: longhorn
-    controlPlaneProvider:
-      type: steward
-    capi:
-      enabled: true
-      infrastructureProviders:
-        - name: aws
-
-  controlPlaneExposure:
-    mode: LoadBalancer
-```
-
-### Run Bootstrap
-
-```bash
-butleradm bootstrap aws --config bootstrap.yaml
-```
-
----
-
-## Network Architecture
-
-```mermaid
-flowchart TB
-    subgraph AWS["AWS Account"]
-        subgraph VPC["VPC"]
-            subgraph Subnet["Public Subnet (us-east-1a)"]
-                CP0["CP-0<br/>10.0.1.10"]
-                CP1["CP-1<br/>10.0.1.11"]
-                CP2["CP-2<br/>10.0.1.12"]
-                W0["Worker-0<br/>10.0.1.20"]
-                W1["Worker-1<br/>10.0.1.21"]
-                W2["Worker-2<br/>10.0.1.22"]
-            end
-            SG["Security Group"]
-        end
-        NLB["Network Load Balancer<br/>butler-mgmt-nlb-xxx.elb.amazonaws.com:6443"]
-    end
-
-    Internet["External Access"] --> NLB
-    NLB --> CP0
-    NLB --> CP1
-    NLB --> CP2
-    SG -.-> Subnet
+# Cilium VXLAN overlay (node-to-node)
+aws ec2 authorize-security-group-ingress --group-id $SG_ID \
+  --protocol udp --port 8472 --source-group $SG_ID
 ```
 
 ### Security Group Rules
 
-| Direction | Protocol/Port | Source/Destination | Purpose |
-|-----------|--------------|-------------------|---------|
+| Direction | Protocol/Port | Source | Purpose |
+|-----------|--------------|--------|---------|
 | Inbound | TCP 6443 | 0.0.0.0/0 | Kubernetes API (external + NLB health checks) |
 | Inbound | TCP 50000-50001 | Self | Talos API (apid + trustd) |
 | Inbound | TCP 2379-2380 | Self | etcd client and peer |
 | Inbound | TCP 10250 | Self | kubelet API |
-
-NLB health checks originate from within the VPC, so the `0.0.0.0/0` rule on port 6443 covers both external access and health check traffic.
-
----
-
-## Load Balancer Resources
-
-When the bootstrap controller creates a LoadBalancerRequest with `provider: aws`, the AWS provider controller creates:
-
-| AWS Resource | Purpose |
-|--------------|---------|
-| Network Load Balancer | Regional L4 load balancer in the VPC |
-| Target group (TCP 6443) | Groups the control plane EC2 instances |
-| Listener (TCP 6443) | Routes traffic from NLB to the target group |
-
-The NLB uses TCP passthrough. The NLB DNS name (e.g., `butler-mgmt-nlb-xxx.elb.us-east-1.amazonaws.com`) is reported as the LoadBalancerRequest endpoint and used as the control plane address.
-
-Target registration uses instance IDs (`LoadBalancerTarget.instanceID`).
+| Inbound | TCP 4240 | Self | Cilium health checks |
+| Inbound | UDP 8472 | Self | Cilium VXLAN overlay |
 
 ---
 
-## Resource Recommendations
+## Bootstrap Configuration
 
-| Profile | CP Nodes | CP Instance Type | Worker Nodes | Worker Instance Type | Estimated Monthly Cost |
-|---------|----------|-----------------|-------------|---------------------|----------------------|
-| Development | 1 (single-node) | m6i.xlarge (4 vCPU, 16 GB) | 0 | -- | ~$150 |
-| Staging | 3 | m6i.xlarge (4 vCPU, 16 GB) | 2 | m6i.2xlarge (8 vCPU, 32 GB) | ~$950 |
-| Production | 3 | m6i.xlarge (4 vCPU, 16 GB) | 3+ | m6i.2xlarge (8 vCPU, 32 GB) | ~$1,300+ |
+Create a config file at `~/.butler/bootstrap-aws.yaml`:
 
-NLB pricing: NLB charges per hour plus per LCU (Load Balancer Capacity Unit). For a management cluster with low traffic, expect approximately $20/month.
+### Single-Node
+
+```yaml
+provider: aws
+
+cluster:
+  name: butler-mgmt
+  topology: single-node
+  controlPlane:
+    replicas: 1
+    cpu: 4
+    memoryMB: 16384           # 16 GB
+    diskGB: 100
+
+network:
+  podCIDR: "10.244.0.0/16"
+  serviceCIDR: "10.96.0.0/12"
+  # No vip or loadBalancerPool for cloud providers
+
+talos:
+  version: v1.12.2
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+
+providerConfig:
+  aws:
+    accessKeyID: "AKIAIOSFODNN7EXAMPLE"        # IAM access key
+    secretAccessKey: "wJalrXUtnFEMI/K7MDENG..."  # IAM secret key
+    region: "us-east-1"                          # AWS region
+    vpcID: "vpc-0123456789abcdef0"               # VPC ID
+    subnetID: "subnet-0123456789abcdef0"         # Public subnet ID
+    securityGroupID: "sg-0123456789abcdef0"      # Security group ID
+    # instanceType: "m5.xlarge"                  # Optional: override (default: m5.xlarge)
+    # ami: "ami-0123456789abcdef0"               # Optional: custom AMI
+```
+
+### HA
+
+```yaml
+provider: aws
+
+cluster:
+  name: butler-mgmt
+  topology: ha
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 16384
+    diskGB: 100
+  workers:
+    replicas: 2
+    cpu: 4
+    memoryMB: 16384
+    diskGB: 50
+
+network:
+  podCIDR: "10.244.0.0/16"
+  serviceCIDR: "10.96.0.0/12"
+
+talos:
+  version: v1.12.2
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+
+providerConfig:
+  aws:
+    accessKeyID: "AKIAIOSFODNN7EXAMPLE"
+    secretAccessKey: "wJalrXUtnFEMI/K7MDENG..."
+    region: "us-east-1"
+    vpcID: "vpc-0123456789abcdef0"
+    subnetID: "subnet-0123456789abcdef0"
+    securityGroupID: "sg-0123456789abcdef0"
+```
+
+### Cloud vs On-Prem Differences
+
+- No `vip` field: cloud providers use a load balancer instead of kube-vip
+- No `loadBalancerPool` field: cloud providers do not use MetalLB
+- kube-vip, MetalLB, and Traefik are automatically skipped during addon installation
+- The AWS CCM is installed instead, handling `type: LoadBalancer` services natively
+- The Butler Console is exposed as a `type: LoadBalancer` service with an NLB annotation
+
+---
+
+## Run Bootstrap
+
+```bash
+butleradm bootstrap aws --config ~/.butler/bootstrap-aws.yaml
+```
+
+---
+
+## Validation
+
+```bash
+export KUBECONFIG=~/.butler/butler-mgmt-kubeconfig
+
+# All nodes Ready with providerID set
+kubectl get nodes -o wide
+kubectl get nodes -o jsonpath='{.items[*].spec.providerID}'
+# Expected format: aws:///<zone>/<instance-id>
+
+# AWS CCM running
+kubectl get pods -n kube-system | grep cloud
+
+# Cilium healthy
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
+
+# Longhorn healthy
+kubectl get pods -n longhorn-system
+
+# Butler Console exposed via NLB
+kubectl get svc butler-console-frontend -n butler-system
+# Should show type: LoadBalancer with an external hostname
+
+# Console accessible
+curl http://<NLB-hostname>
+```
+
+---
+
+## Cleanup
+
+```bash
+# Delete KIND bootstrap cluster
+kind delete cluster --name butler-bootstrap
+
+# Terminate EC2 instances
+aws ec2 describe-instances \
+  --filters "Name=tag:butler_butlerlabs_dev_managed-by,Values=butler" \
+  --query 'Reservations[].Instances[].InstanceId' --output text \
+  | xargs -I{} aws ec2 terminate-instances --instance-ids {}
+
+# Delete orphaned NLBs
+aws elbv2 describe-load-balancers \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `butler-mgmt`)].LoadBalancerArn' \
+  --output text \
+  | xargs -I{} aws elbv2 delete-load-balancer --load-balancer-arn {}
+```
 
 ---
 
@@ -306,19 +318,19 @@ NLB pricing: NLB charges per hour plus per LCU (Load Balancer Capacity Unit). Fo
 
 ### Security Group Rules Missing
 
-**Symptom**: Talos bootstrap times out. Nodes cannot communicate on required ports.
+**Symptom**: Talos bootstrap times out. Nodes cannot communicate.
 
-**Verify**:
 ```bash
 aws ec2 describe-security-groups --group-ids sg-XXXXX \
   --query "SecurityGroups[0].IpPermissions"
 ```
 
+Verify all six rules are present (6443, 50000-50001, 2379-2380, 10250, 4240, 8472).
+
 ### IAM Permissions Insufficient
 
-**Symptom**: Provider controller logs show `UnauthorizedOperation` errors.
+**Symptom**: Provider controller logs show `UnauthorizedOperation`.
 
-**Verify**:
 ```bash
 aws iam simulate-principal-policy \
   --policy-source-arn arn:aws:iam::ACCOUNT:user/butler-bootstrap \
@@ -327,30 +339,39 @@ aws iam simulate-principal-policy \
 
 ### NLB Target Health Failures
 
-**Symptom**: LoadBalancerRequest stuck in `Creating` phase. Target group shows unhealthy targets.
+**Symptom**: LoadBalancerRequest stuck in `Creating`. Target group shows unhealthy targets.
 
-**Verify**:
 ```bash
 aws elbv2 describe-target-health \
   --target-group-arn arn:aws:elasticloadbalancing:REGION:ACCOUNT:targetgroup/butler-mgmt/XXXXX
 ```
 
-**Common causes:**
-- Security group does not allow TCP 6443 from VPC CIDR
+Common causes:
+- Security group does not allow TCP 6443 from the VPC CIDR
 - kube-apiserver not yet listening (bootstrap still in progress)
-- Instance not registered in the correct target group
+- Instances not registered in the correct target group
 
 ### Subnet Not Public
 
 **Symptom**: Instances created but not reachable from the bootstrap machine.
 
-Instances need a route to the internet (via IGW) for the KIND cluster to reach the Talos API during bootstrap. Use a public subnet with auto-assign public IP, or set up a bastion/VPN.
+During bootstrap, the KIND cluster must reach each VM's Talos API on port 50000. Instances need a public IP (either auto-assigned or Elastic IP) and a route to the internet via an Internet Gateway.
+
+### Instance Tags
+
+EC2 instances are tagged with `kubernetes.io/cluster/<clusterName>: owned`. The AWS CCM uses this tag for instance discovery. If you see CCM errors about not finding instances, verify the tags are present:
+
+```bash
+aws ec2 describe-instances \
+  --instance-ids <id> \
+  --query 'Reservations[].Instances[].Tags'
+```
 
 ---
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
-- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) - full spec reference
-- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) - cloud LB provisioning
-- [ProviderConfig CRD](../reference/crds/providerconfig.md) - provider credentials
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
+- [GCP Provider](gcp.md) - Alternative cloud provider
+- [Azure Provider](azure.md) - Alternative cloud provider
