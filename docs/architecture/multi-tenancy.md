@@ -246,15 +246,7 @@ backend-team/
 
 ### Cross-Team Access
 
-By default, teams cannot access each other's resources. Platform admins can grant cross-team access via:
-
-```yaml
-spec:
-  access:
-    crossTeamAccess:
-      - team: platform-team
-        role: viewer  # Can view but not modify
-```
+By default, teams cannot access each other's resources. Platform admins have full access to all teams. Cross-team visibility for non-admin users is not currently supported but is planned for a future release.
 
 ### Cluster Kubeconfig Isolation
 

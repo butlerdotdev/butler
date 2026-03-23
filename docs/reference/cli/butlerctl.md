@@ -58,9 +58,9 @@ butlerctl cluster list -n team-backend
 **Output:**
 
 ```
-NAME          NAMESPACE      PHASE     WORKERS   VERSION   AGE
-dev-cluster   team-backend   Running   3/3       v1.30.0   2d
-staging       team-backend   Running   5/5       v1.30.0   7d
+NAME          NAMESPACE      PHASE   WORKERS   VERSION   AGE
+dev-cluster   team-backend   Ready   3/3       v1.30.0   2d
+staging       team-backend   Ready   5/5       v1.30.0   7d
 ```
 
 ### butlerctl cluster create
@@ -432,7 +432,7 @@ butlerctl version
 butlerctl version v0.1.0
   Built: 2026-01-15T10:00:00Z
   Git commit: abc1234
-  Go version: go1.23.0
+  Go version: go1.24.6
 ```
 
 ---

@@ -352,7 +352,7 @@ butleradm provider add <name> --type <type> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--type` | Provider type: `harvester`, `nutanix`, `proxmox` |
+| `--type` | Provider type: `harvester`, `nutanix`, `proxmox`, `aws`, `azure`, `gcp` |
 | `--kubeconfig` | Provider kubeconfig (Harvester) |
 | `--endpoint` | API endpoint (Nutanix/Proxmox) |
 | `--credentials` | Path to credentials file |

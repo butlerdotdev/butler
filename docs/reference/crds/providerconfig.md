@@ -206,7 +206,7 @@ IPAM mode (`ipam`) is required for on-premises providers and is forbidden for cl
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `name` | string | Yes | | Name of the IP address pool resource |
-| `priority` | int32 | No | `0` | Pool selection priority. Higher values indicate higher priority |
+| `priority` | int32 | No | `0` | Pool selection priority. Lower values indicate higher priority (0 is tried first) |
 
 ### LoadBalancerConfig
 
@@ -344,9 +344,10 @@ stringData:
 
 | Key | Description |
 |-----|-------------|
-| `tenantId` | Azure Active Directory tenant ID |
-| `clientId` | Service principal application (client) ID |
+| `tenantID` | Azure Active Directory tenant ID |
+| `clientID` | Service principal application (client) ID |
 | `clientSecret` | Service principal client secret |
+| `subscriptionID` | Azure subscription ID |
 
 ```yaml
 apiVersion: v1
@@ -356,16 +357,17 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  tenantId: <azure-tenant-id>
-  clientId: <service-principal-client-id>
+  tenantID: <azure-tenant-id>
+  clientID: <service-principal-client-id>
   clientSecret: <service-principal-secret>
+  subscriptionID: <azure-subscription-id>
 ```
 
 ### AWS
 
 | Key | Description |
 |-----|-------------|
-| `accessKeyId` | IAM access key ID |
+| `accessKeyID` | IAM access key ID |
 | `secretAccessKey` | IAM secret access key |
 
 ```yaml
@@ -376,7 +378,7 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  accessKeyId: <aws-access-key-id>
+  accessKeyID: <aws-access-key-id>
   secretAccessKey: <aws-secret-access-key>
 ```
 
@@ -455,9 +457,9 @@ spec:
     mode: ipam
     poolRefs:
       - name: prod-ip-pool
-        priority: 10
+        priority: 0
       - name: overflow-ip-pool
-        priority: 5
+        priority: 10
     subnet: "10.40.0.0/24"
     gateway: "10.40.0.1"
     dnsServers:
