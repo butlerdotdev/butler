@@ -77,19 +77,17 @@ spec:
         role: operator
         
   # Resource defaults for new clusters
-  defaults:
+  clusterDefaults:
     kubernetesVersion: "v1.30.0"
-    workers:
-      replicas: 3
-      machineTemplate:
-        cpu: 4
-        memory: 8Gi
-        
-  # Resource quotas
-  quotas:
+    workerCount: 3
+    workerCPU: 4
+    workerMemoryGi: 8
+
+  # Resource limits
+  resourceLimits:
     maxClusters: 10
-    maxWorkersPerCluster: 20
-    maxTotalWorkers: 100
+    maxNodesPerCluster: 20
+    maxTotalNodes: 100
 ```
 
 ### Team Fields
@@ -100,8 +98,8 @@ spec:
 | `description` | Team description |
 | `access.users` | Individual user permissions |
 | `access.groups` | Group-based permissions (from IdP) |
-| `defaults` | Default values for new clusters |
-| `quotas` | Resource limits for the team |
+| `clusterDefaults` | Default values for new clusters |
+| `resourceLimits` | Resource limits for the team |
 
 ## Multi-Tenancy Modes
 
@@ -114,16 +112,16 @@ metadata:
   name: butler
 spec:
   multiTenancy:
-    mode: Enforced  # enforced, optional, or disabled
+    mode: Enforced  # Enforced, Optional, or Disabled
 ```
 
 ### Mode Comparison
 
 | Mode | Team Required | Use Case |
 |------|---------------|----------|
-| `enforced` | Yes | Enterprise with strict isolation |
-| `optional` | No | Gradual adoption |
-| `disabled` | No | Single team or simple setup |
+| `Enforced` | Yes | Enterprise with strict isolation |
+| `Optional` | No | Gradual adoption |
+| `Disabled` | No | Single team or simple setup |
 
 ### Enforced Mode
 
@@ -248,15 +246,7 @@ backend-team/
 
 ### Cross-Team Access
 
-By default, teams cannot access each other's resources. Platform admins can grant cross-team access via:
-
-```yaml
-spec:
-  access:
-    crossTeamAccess:
-      - team: platform-team
-        role: viewer  # Can view but not modify
-```
+By default, teams cannot access each other's resources. Platform admins have full access to all teams. Cross-team visibility for non-admin users is not currently supported but is planned for a future release.
 
 ### Cluster Kubeconfig Isolation
 
@@ -323,5 +313,4 @@ spec:
 
 ## See Also
 
-- [Security Model](security-model.md) - Authentication and authorization
 - [Getting Started](../getting-started/) - Create your first team

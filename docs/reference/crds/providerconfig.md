@@ -17,6 +17,8 @@ Namespaced
 
 `pc`
 
+> **Note:** `kubectl get pc` resolves to the built-in PriorityClass resource. Use the full name: `kubectl get providerconfigs`.
+
 ## Finalizer
 
 `butler.butlerlabs.dev/providerconfig`
@@ -124,6 +126,8 @@ Configuration for [Microsoft Azure](https://azure.microsoft.com/).
 | `location` | string | No | | Azure region (e.g., `eastus`, `westeurope`) |
 | `vnetName` | string | No | | Virtual network name |
 | `subnetName` | string | No | | Subnet name within the VNet |
+| `vmSize` | string | No | | Default Azure VM size (e.g., `Standard_D4s_v3`) |
+| `imageURN` | string | No | | VM image reference. Supports URN format (`publisher:offer:sku:version`), managed image resource ID, or shared gallery image version ID |
 
 ### AWSConfig
 
@@ -144,8 +148,15 @@ Configuration for [Google Cloud Platform](https://cloud.google.com/).
 |-------|------|----------|---------|-------------|
 | `projectID` | string | Yes | | GCP project ID |
 | `region` | string | Yes | | GCP region (e.g., `us-central1`, `europe-west1`) |
+| `zone` | string | No | `{region}-a` | GCP compute zone (e.g., `us-central1-a`) |
 | `network` | string | No | | VPC network name |
 | `subnetwork` | string | No | | Subnetwork name within the VPC |
+| `machineType` | string | No | | Default GCE machine type (e.g., `n2-standard-4`) |
+| `imageProject` | string | No | | GCP project containing the source image |
+| `imageFamily` | string | No | | Image family to use (e.g., `talos-v1-12`). Ignored if `image` is specified |
+| `image` | string | No | | Specific image name. Takes precedence over `imageFamily` |
+| `serviceAccount` | string | No | | GCE service account email for VM instances |
+| `tags` | []string | No | | Network tags applied to VM instances for firewall rules |
 
 ---
 
@@ -197,7 +208,7 @@ IPAM mode (`ipam`) is required for on-premises providers and is forbidden for cl
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `name` | string | Yes | | Name of the IP address pool resource |
-| `priority` | int32 | No | `0` | Pool selection priority. Higher values indicate higher priority |
+| `priority` | *int32 | No | `0` | Pool selection priority. Lower values indicate higher priority (0 is tried first) |
 
 ### LoadBalancerConfig
 
@@ -335,9 +346,10 @@ stringData:
 
 | Key | Description |
 |-----|-------------|
-| `tenantId` | Azure Active Directory tenant ID |
-| `clientId` | Service principal application (client) ID |
+| `tenantID` | Azure Active Directory tenant ID |
+| `clientID` | Service principal application (client) ID |
 | `clientSecret` | Service principal client secret |
+| `subscriptionID` | Azure subscription ID |
 
 ```yaml
 apiVersion: v1
@@ -347,16 +359,17 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  tenantId: <azure-tenant-id>
-  clientId: <service-principal-client-id>
+  tenantID: <azure-tenant-id>
+  clientID: <service-principal-client-id>
   clientSecret: <service-principal-secret>
+  subscriptionID: <azure-subscription-id>
 ```
 
 ### AWS
 
 | Key | Description |
 |-----|-------------|
-| `accessKeyId` | IAM access key ID |
+| `accessKeyID` | IAM access key ID |
 | `secretAccessKey` | IAM secret access key |
 
 ```yaml
@@ -367,7 +380,7 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  accessKeyId: <aws-access-key-id>
+  accessKeyID: <aws-access-key-id>
   secretAccessKey: <aws-secret-access-key>
 ```
 
@@ -375,7 +388,7 @@ stringData:
 
 | Key | Description |
 |-----|-------------|
-| `serviceAccount` | GCP service account key in JSON format |
+| `serviceAccountKey` | GCP service account key in JSON format |
 
 ```yaml
 apiVersion: v1
@@ -385,7 +398,7 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  serviceAccount: |
+  serviceAccountKey: |
     {
       "type": "service_account",
       "project_id": "my-project",
@@ -446,9 +459,9 @@ spec:
     mode: ipam
     poolRefs:
       - name: prod-ip-pool
-        priority: 10
+        priority: 0
       - name: overflow-ip-pool
-        priority: 5
+        priority: 10
     subnet: "10.40.0.0/24"
     gateway: "10.40.0.1"
     dnsServers:

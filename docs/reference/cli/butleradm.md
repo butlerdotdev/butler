@@ -15,9 +15,8 @@ butleradm [command] [flags]
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--kubeconfig` | | Path to kubeconfig file |
-| `--context` | | Kubernetes context to use |
-| `--output` | `-o` | Output format: `table`, `yaml`, `json` |
+| `--config` | `-c` | Path to config file |
+| `--verbose` | `-v` | Enable verbose output |
 | `--help` | `-h` | Help for command |
 
 ---
@@ -68,51 +67,39 @@ butleradm bootstrap harvester --config bootstrap.yaml --dry-run
 
 **Bootstrap Config Example:**
 
+The bootstrap config is a plain YAML file (not a Kubernetes resource). See [Bootstrap Config Reference](../bootstrap-config.md) for all fields.
+
 ```yaml
-apiVersion: bootstrap.butler.butlerlabs.dev/v1alpha1
-kind: BootstrapConfig
-metadata:
-  name: butler-bootstrap
-spec:
-  # Cluster configuration
-  cluster:
-    name: butler-mgmt
-    kubernetesVersion: "1.30.0"
-    controlPlanes: 3
-    workers: 3
+provider: harvester
 
-  # Node configuration
-  nodes:
-    controlPlane:
-      cpu: 4
-      memory: 8Gi
-      disk: 100Gi
-    worker:
-      cpu: 8
-      memory: 16Gi
-      disk: 200Gi
+cluster:
+  name: butler-mgmt
+  topology: ha
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+  workers:
+    replicas: 3
+    cpu: 8
+    memoryMB: 16384
+    diskGB: 100
 
-  # Network configuration
-  network:
-    podCIDR: 10.244.0.0/16
-    serviceCIDR: 10.96.0.0/12
-    loadBalancerRange: 10.40.0.100-10.40.0.150
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.40.0.100
+  loadBalancerPool:
+    start: 10.40.0.110
+    end: 10.40.0.150
 
-  # Storage
-  storage:
-    class: longhorn
-
-  # Addons
-  addons:
-    cilium:
-      enabled: true
-    metallb:
-      enabled: true
-      addressPool: 10.40.0.100-10.40.0.150
-    longhorn:
-      enabled: true
-    certManager:
-      enabled: true
+providerConfig:
+  harvester:
+    kubeconfigPath: ~/.butler/harvester-kubeconfig
+    namespace: default
+    networkName: default/vlan40-workloads
+    imageName: default/talos-v1-12-1
 ```
 
 ### butleradm bootstrap nutanix
@@ -242,7 +229,7 @@ butleradm bootstrap azure --config bootstrap.yaml \
 
 ### Bootstrap Config Reference
 
-The bootstrap config file is a ClusterBootstrap resource. See the [ClusterBootstrap CRD reference](../crds/clusterbootstrap.md) for the full spec. Key sections:
+The bootstrap config is a plain YAML file parsed by the CLI. See the [Bootstrap Config Reference](../bootstrap-config.md) for all fields. Key sections:
 
 | Section | Purpose | On-Prem | Cloud |
 |---------|---------|---------|-------|
@@ -364,194 +351,11 @@ butleradm provider add <name> --type <type> [flags]
 
 | Flag | Description |
 |------|-------------|
-| `--type` | Provider type: `harvester`, `nutanix`, `proxmox` |
+| `--type` | Provider type: `harvester`, `nutanix`, `proxmox`, `aws`, `azure`, `gcp` |
 | `--kubeconfig` | Provider kubeconfig (Harvester) |
 | `--endpoint` | API endpoint (Nutanix/Proxmox) |
 | `--credentials` | Path to credentials file |
 | `--namespace` | Namespace for ProviderConfig |
-
----
-
-## butleradm team
-
-Manage teams (admin operations).
-
-### butleradm team list
-
-List all teams.
-
-```bash
-butleradm team list
-```
-
-### butleradm team create
-
-Create a new team.
-
-```bash
-butleradm team create <name> [flags]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--display-name` | Human-readable name |
-| `--admin` | Initial admin user email |
-| `--provider` | Default provider for team |
-
-**Examples:**
-
-```bash
-butleradm team create backend \
-  --display-name "Backend Team" \
-  --admin admin@company.com \
-  --provider harvester-prod
-```
-
-### butleradm team delete
-
-Delete a team.
-
-```bash
-butleradm team delete <name> [flags]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--force` | Skip confirmation |
-| `--cascade` | Delete all team clusters |
-
----
-
-## butleradm user
-
-Manage users.
-
-### butleradm user list
-
-List all users.
-
-```bash
-butleradm user list
-```
-
-### butleradm user create
-
-Create a new user.
-
-```bash
-butleradm user create <email> [flags]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--name` | Display name |
-| `--admin` | Grant platform admin role |
-| `--send-invite` | Send invitation email |
-
-### butleradm user delete
-
-Delete a user.
-
-```bash
-butleradm user delete <email> [flags]
-```
-
----
-
-## butleradm addon
-
-Manage addon catalog.
-
-### butleradm addon list
-
-List available addon definitions.
-
-```bash
-butleradm addon list
-```
-
-**Output:**
-
-```
-NAME           CATEGORY       VERSIONS                    DEFAULT
-cilium         networking     1.17.0, 1.16.5, 1.16.0     1.17.0
-metallb        loadbalancer   0.14.9, 0.14.5             0.14.9
-longhorn       storage        1.7.0, 1.6.2               1.7.0
-cert-manager   security       1.16.0, 1.15.3             1.16.0
-prometheus     monitoring     25.0.0, 24.0.0             25.0.0
-```
-
-### butleradm addon sync
-
-Sync addon definitions from repository.
-
-```bash
-butleradm addon sync [flags]
-```
-
----
-
-## butleradm upgrade
-
-Upgrade Butler components.
-
-### butleradm upgrade check
-
-Check for available upgrades.
-
-```bash
-butleradm upgrade check
-```
-
-### butleradm upgrade apply
-
-Apply an upgrade.
-
-```bash
-butleradm upgrade apply [flags]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--version` | Target version |
-| `--dry-run` | Show what would be upgraded |
-| `--skip-backup` | Skip pre-upgrade backup |
-
----
-
-## butleradm support-bundle
-
-Collect diagnostics for troubleshooting.
-
-```bash
-butleradm support-bundle [flags]
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--output` | Output file path |
-| `--include-secrets` | Include secrets (redacted) |
-| `--since` | Include logs since duration |
-
-**Examples:**
-
-```bash
-# Collect support bundle
-butleradm support-bundle --output butler-support.tar.gz
-
-# Include last 24 hours of logs
-butleradm support-bundle --output support.tar.gz --since 24h
-```
 
 ---
 

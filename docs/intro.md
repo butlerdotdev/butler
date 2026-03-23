@@ -12,7 +12,7 @@ Butler provisions and manages Kubernetes clusters across heterogeneous infrastru
 
 - Tenant cluster provisioning in under 5 minutes
 - Hosted control planes via Steward (no dedicated control plane nodes)
-- Multi-provider: Harvester, Nutanix, Proxmox
+- Multi-provider: Harvester, Nutanix, Proxmox, AWS, GCP, Azure
 - Platform addons: Cilium, MetalLB, cert-manager, Longhorn
 - Web console with terminal access and addon management
 - CLI tools: `butleradm` (bootstrap), `butlerctl` (operations)
@@ -25,7 +25,7 @@ graph TB
         steward["Hosted Control Planes (Steward)"]
         capi["Cluster API<br/>Machine Lifecycle"]
         ctrl["Butler Controller<br/>TenantCluster CRD"]
-        prov["Provider Controllers<br/>Harvester / Nutanix / Proxmox"]
+        prov["Provider Controllers<br/>Harvester / Nutanix / AWS / GCP / Azure"]
         console["Console + Server<br/>Web UI and API"]
     end
 
@@ -63,7 +63,7 @@ curl -sL https://github.com/butlerdotdev/butler-cli/releases/latest/download/but
 chmod +x butleradm
 
 # Bootstrap (Harvester example)
-./butleradm bootstrap --config bootstrap.yaml
+./butleradm bootstrap harvester --config bootstrap.yaml
 ```
 
 See [butler-cli](https://github.com/butlerdotdev/butler-cli) for configuration options.
@@ -71,18 +71,14 @@ See [butler-cli](https://github.com/butlerdotdev/butler-cli) for configuration o
 ### Install on Existing Cluster
 
 ```bash
-# Add Helm repository
-helm repo add butler https://butlerdotdev.github.io/butler-charts
-helm repo update
-
 # Install CRDs
-helm install butler-crds butler/butler-crds
+helm install butler-crds oci://ghcr.io/butlerdotdev/charts/butler-crds -n butler-system --create-namespace
 
 # Install controller
-helm install butler-controller butler/butler-controller
+helm install butler-controller oci://ghcr.io/butlerdotdev/charts/butler-controller -n butler-system
 
 # Install console (optional)
-helm install butler-console butler/butler-console
+helm install butler-console oci://ghcr.io/butlerdotdev/charts/butler-console -n butler-system
 ```
 
 ### Create a Tenant Cluster
@@ -124,7 +120,10 @@ Butler is under active development. Current status:
 | Bootstrap (butleradm) | Stable |
 | TenantCluster Controller | Stable |
 | Harvester Provider | Stable |
-| Nutanix Provider | In Progress |
+| Nutanix Provider | Stable |
+| AWS Provider | Beta |
+| GCP Provider | Beta |
+| Azure Provider | Beta |
 | Proxmox Provider | Planned |
 | Console | Beta |
 | butlerctl CLI | Beta |

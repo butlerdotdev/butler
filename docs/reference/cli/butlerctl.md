@@ -15,11 +15,10 @@ butlerctl [command] [flags]
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--kubeconfig` | | Path to kubeconfig file (default: `~/.kube/config`) |
-| `--context` | | Kubernetes context to use |
-| `--namespace` | `-n` | Namespace for resources |
-| `--output` | `-o` | Output format: `table`, `yaml`, `json` |
+| `--verbose` | `-v` | Enable verbose output |
 | `--help` | `-h` | Help for command |
+
+> **Note:** Kubeconfig resolution follows the standard Kubernetes convention: `--kubeconfig` flag on subcommands, `KUBECONFIG` environment variable, or `~/.kube/config` default. Namespace and output format flags are available on individual subcommands, not globally.
 
 ---
 
@@ -58,9 +57,9 @@ butlerctl cluster list -n team-backend
 **Output:**
 
 ```
-NAME          NAMESPACE      PHASE     WORKERS   VERSION   AGE
-dev-cluster   team-backend   Running   3/3       v1.30.0   2d
-staging       team-backend   Running   5/5       v1.30.0   7d
+NAME          NAMESPACE      PHASE   WORKERS   VERSION   AGE
+dev-cluster   team-backend   Ready   3/3       v1.30.0   2d
+staging       team-backend   Ready   5/5       v1.30.0   7d
 ```
 
 ### butlerctl cluster create
@@ -73,33 +72,69 @@ butlerctl cluster create <name> [flags]
 
 **Flags:**
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--k8s-version` | Kubernetes version (e.g., v1.30.0) | `v1.30.0` |
-| `--workers` | Number of worker nodes | `3` |
-| `--cpu` | CPU cores per worker | `4` |
-| `--memory` | Memory per worker | `8Gi` |
-| `--disk` | Disk size per worker | `40Gi` |
-| `--provider` | ProviderConfig name | (default provider) |
-| `--wait` | Wait for cluster to be ready | `false` |
-| `--timeout` | Timeout for --wait | `30m` |
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--k8s-version` | | Kubernetes version | `v1.30.2` |
+| `--workers` | `-w` | Number of worker nodes (1-10) | `1` |
+| `--cpu` | | CPU cores per worker (1-128) | `4` |
+| `--memory` | | Memory per worker | `8Gi` |
+| `--disk` | | Disk size per worker | `50Gi` |
+| `--provider` | `-p` | ProviderConfig name (auto-detected if only one exists) | |
+| `--image` | | OS image reference (UUID or namespace/name) | |
+| `--schematic-id` | | Image Factory schematic ID | |
+| `--lb-pool` | | LoadBalancer IP pool (SINGLE_IP or START-END) | |
+| `--lb-pool-start` | | LoadBalancer pool start IP | |
+| `--lb-pool-end` | | LoadBalancer pool end IP | |
+| `--pod-cidr` | | Pod network CIDR | `10.244.0.0/16` |
+| `--service-cidr` | | Service network CIDR | `10.96.0.0/12` |
+| `--filename` | `-f` | Create from YAML file (skips flag validation) | |
+| `--dry-run` | | Preview TenantCluster YAML without creating | `false` |
+| `--wait` | | Wait for cluster to reach Ready | `false` |
+| `--timeout` | | Timeout for --wait | `15m` |
+
+Control plane resource flags (all optional, override ButlerConfig defaults):
+
+| Flag | Description |
+|------|-------------|
+| `--cp-apiserver-cpu-request` | API server CPU request (e.g., 100m) |
+| `--cp-apiserver-memory-request` | API server memory request (e.g., 256Mi) |
+| `--cp-apiserver-cpu-limit` | API server CPU limit |
+| `--cp-apiserver-memory-limit` | API server memory limit |
+| `--cp-controller-manager-cpu-request` | Controller manager CPU request |
+| `--cp-controller-manager-memory-request` | Controller manager memory request |
+| `--cp-controller-manager-cpu-limit` | Controller manager CPU limit |
+| `--cp-controller-manager-memory-limit` | Controller manager memory limit |
+| `--cp-scheduler-cpu-request` | Scheduler CPU request |
+| `--cp-scheduler-memory-request` | Scheduler memory request |
+| `--cp-scheduler-cpu-limit` | Scheduler CPU limit |
+| `--cp-scheduler-memory-limit` | Scheduler memory limit |
 
 **Examples:**
 
 ```bash
 # Create minimal cluster
-butlerctl cluster create dev-cluster
+butlerctl cluster create dev-cluster --lb-pool 10.40.1.100-10.40.1.110
 
 # Create with custom resources
 butlerctl cluster create prod-api \
-  --k8s-version v1.30.0 \
+  --k8s-version v1.31.0 \
   --workers 5 \
   --cpu 8 \
   --memory 32Gi \
-  --disk 200Gi
+  --disk 200Gi \
+  --lb-pool-start 10.40.2.100 \
+  --lb-pool-end 10.40.2.150
+
+# Dry run to preview YAML
+butlerctl cluster create dev --dry-run
+
+# Create from YAML file
+butlerctl cluster create -f cluster.yaml
 
 # Create and wait for ready
-butlerctl cluster create dev --wait --timeout 20m
+butlerctl cluster create dev \
+  --lb-pool 10.40.1.100-10.40.1.110 \
+  --wait --timeout 20m
 ```
 
 ### butlerctl cluster get
@@ -260,24 +295,124 @@ butlerctl cluster destroy dev-cluster --force --wait
 
 ---
 
-## butlerctl team
+## butlerctl image
 
-Manage team membership (self-service).
+Manage OS images and image sync operations.
 
-### butlerctl team list
+Butler uses ImageSync resources to sync OS images (Talos, Flatcar, Rocky, etc.) from the Butler Image Factory to infrastructure providers. These commands manage that lifecycle.
 
-List teams you are a member of.
+### butlerctl image list
+
+List ImageSync resources.
 
 ```bash
-butlerctl team list
+butlerctl image list [flags]
 ```
 
-### butlerctl team get
+**Aliases:** `ls`
 
-Get details about a team.
+**Flags:**
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--namespace` | `-n` | Namespace | `butler-system` |
+| `--output` | `-o` | Output format: table, json, yaml | `table` |
+| `--provider` | | Filter by provider name | |
+| `--status` | | Filter by phase (Pending, Building, Downloading, Uploading, Ready, Failed) | |
+| `--schematic` | | Filter by schematic ID prefix | |
+
+**Output:**
+
+```
+NAME                         PROVIDER         PHASE   SCHEMATIC   VERSION    IMAGE REF              AGE
+image-71e06ba7-v1122-hvstr   harvester-prod   Ready   71e06ba7    v1.12.2    default/talos-v1122    3d
+image-f4f34401-v4459-hvstr   harvester-prod   Ready   f4f34401    4459.2.1   default/flatcar-4459   1d
+```
+
+### butlerctl image sync
+
+Create an ImageSync to sync an image to a provider.
 
 ```bash
-butlerctl team get <name>
+butlerctl image sync [flags]
+```
+
+**Flags:**
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--schematic-id` | Schematic ID from the Image Factory | Yes |
+| `--version` | OS version (e.g., v1.12.4) | Yes |
+| `--provider` | Provider config reference (namespace/name or name) | Yes |
+| `--arch` | CPU architecture (default: amd64) | No |
+| `--format` | Image format: qcow2, raw, iso (default: qcow2) | No |
+| `--transfer-mode` | Transfer mode: direct, proxy (default: direct) | No |
+| `--display-name` | Human-readable name for the image on the provider | No |
+| `--name` | Name for the ImageSync resource (auto-generated if not set) | No |
+| `--namespace` `-n` | Namespace (default: butler-system) | No |
+
+**Examples:**
+
+```bash
+# Sync Talos image to Harvester
+butlerctl image sync \
+  --schematic-id 71e06ba76d3cf365bb4ab4d8f8f4fea55a7620811666b9c25623734ab18ddd27 \
+  --version v1.12.2 \
+  --provider harvester-prod
+
+# Sync with custom name and format
+butlerctl image sync \
+  --schematic-id f4f3440b79585e90ceeb866544513671b4be94fcf4326fc97bdd136b01a0a1b5 \
+  --version 4459.2.1 \
+  --provider harvester-prod \
+  --format raw \
+  --display-name "Flatcar 4459.2.1"
+```
+
+### butlerctl image status
+
+Get detailed status of an ImageSync.
+
+```bash
+butlerctl image status <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--namespace` | `-n` | Namespace (default: butler-system) |
+| `--output` | `-o` | Output format: yaml, json |
+
+### butlerctl image delete
+
+Delete an ImageSync resource. This stops the sync process but does not remove the image from the provider.
+
+```bash
+butlerctl image delete <name> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--namespace` | `-n` | Namespace (default: butler-system) |
+| `--yes` | `-y` | Skip confirmation prompt |
+
+### butlerctl image catalog
+
+Show available images from existing ImageSync resources.
+
+```bash
+butlerctl image catalog [flags]
+```
+
+**Output:**
+
+```
+SCHEMATIC   VERSIONS          FORMATS     READY   TOTAL
+71e06ba7    v1.12.2, v1.12.1  qcow2       2       2
+f4f34401    4459.2.1          raw         1       1
 ```
 
 ---
@@ -296,7 +431,7 @@ butlerctl version
 butlerctl version v0.1.0
   Built: 2026-01-15T10:00:00Z
   Git commit: abc1234
-  Go version: go1.23.0
+  Go version: go1.24.6
 ```
 
 ---
