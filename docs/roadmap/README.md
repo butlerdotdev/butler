@@ -7,9 +7,8 @@ This document outlines the planned development for Butler.
 ## Table of Contents
 
 - [Current Status](#current-status)
-- [2025 Q1](#2025-q1)
-- [2025 Q2](#2025-q2)
-- [2025 H2](#2025-h2)
+- [2026 Q2](#2026-q2)
+- [2026 H2](#2026-h2)
 - [Future Vision](#future-vision)
 - [Completed Milestones](#completed-milestones)
 
@@ -17,118 +16,88 @@ This document outlines the planned development for Butler.
 
 ## Current Status
 
-**Version**: 0.1.x (Alpha)
+**Version**: 0.9.x (Beta)
 
-Butler is currently in alpha with core functionality working:
+Butler is in beta with a comprehensive feature set:
 
-- Management cluster bootstrap (Harvester, Nutanix)
-- Tenant cluster provisioning with hosted control planes
-- Basic addon management (Cilium, MetalLB, Longhorn)
-- CLI tools (butleradm, butlerctl)
-- Web Console (beta)
-- Team-based multi-tenancy
-- Google SSO integration  
-
----
-
-## 2025 Q1
-
-### Platform Stability
-
-- [ ] **Comprehensive E2E testing** - Automated integration tests
-- [ ] **Documentation completion** - Full operational guides
-- [ ] **Error handling improvements** - Better failure messages and recovery
-
-### Authentication & Authorization
-
-- [ ] **Microsoft Entra ID SSO** - Enterprise AD integration
-- [ ] **Okta SSO** - Additional IdP support  
-- [ ] **RBAC enforcement** - API-level role enforcement (not just UI)
-
-### Console Improvements
-
-- [ ] **GitOps export workflow** - Full implementation
-- [ ] **Provider management UI** - CRUD for ProviderConfigs
-- [ ] **Delete confirmation** - Type cluster name to confirm
-
-### CLI Enhancements
-
-- [ ] **Apple code signing** - macOS notarization
-- [ ] **Shell completions** - bash, zsh, fish
-- [ ] **Interactive mode** - Guided cluster creation
+- Management cluster bootstrap across 6 providers (Harvester, Nutanix, AWS, GCP, Azure, with Proxmox planned)
+- Tenant cluster provisioning with hosted control planes via Steward
+- Multi-OS worker nodes (Talos, Rocky, Flatcar, Bottlerocket, Kairos)
+- Three control plane exposure modes (LoadBalancer, Ingress, Gateway)
+- Enterprise IPAM with NetworkPool and IPAllocation
+- Addon management (Cilium, MetalLB, Longhorn, cert-manager, Traefik, FluxCD)
+- CLI tools (butleradm, butlerctl) with cloud bootstrap support
+- Web Console with terminal access, addon management, and ImageSync UI
+- Team-based multi-tenancy with resource quotas
+- SSO integration (Google, Microsoft Entra ID, Okta)
+- Butler Image Factory for OS image building and syncing
+- Configurable control plane resource limits (prevents etcd starvation at scale)
 
 ---
 
-## 2025 Q2
+## 2026 Q2
 
-### New Providers
+### Butler Image Factory
+
+- [ ] **Phase 2: Full image lifecycle** - Automated image builds for all OS types
+- [ ] **Provider-native image registration** - Auto-register images on Nutanix, Proxmox
+- [ ] **Image garbage collection** - Clean up unused images on providers
+
+### Provider Expansion
 
 - [ ] **Proxmox VE provider** - butler-provider-proxmox
 - [ ] **VMware vSphere provider** - butler-provider-vsphere
 
-### Talos Tenant Clusters
+### Platform Stability
 
-- [ ] **Talos worker support** - Talos Linux for tenant workers
-- [ ] **butler-trustd service** - Certificate signing for Steward integration
-- [ ] **Full talosctl support** - Management of Talos tenant clusters
+- [ ] **Comprehensive E2E testing** - Automated integration tests across all providers
+- [ ] **Performance benchmarks** - Published scaling limits (target: 100+ tenants per management cluster)
 
-### Advanced Features
+### Console Improvements
 
-- [ ] **Cluster auto-scaling** - Scale based on workload
-- [ ] **Cluster templates** - Reusable cluster configurations
-- [ ] **Audit logging** - Track all cluster operations
-
-### Addon Ecosystem
-
-- [ ] **ArgoCD addon** - GitOps alternative to Flux
-- [ ] **Velero addon** - Backup and disaster recovery
-- [ ] **External Secrets addon** - Secret management integration
+- [ ] **Butler Portal (Backstage)** - Workspace federation across clusters
+- [ ] **Provider management UI** - CRUD for ProviderConfigs
 
 ---
 
-## 2025 H2
+## 2026 H2
 
 ### Enterprise Features
 
 - [ ] **Cost tracking** - Resource usage per team
-- [ ] **Compliance policies** - Enforce security standards
-- [ ] **Self-service onboarding** - User registration flow
-- [ ] **API tokens** - Service account authentication
+- [ ] **Compliance policies** - Enforce security standards (pod security, network policies)
+- [ ] **API tokens** - Service account authentication for CI/CD
+- [ ] **Audit logging** - Track all cluster operations
 
-### Cloud Providers
+### Cluster Operations
 
-- [ ] **AWS provider** - EKS-like experience on AWS
-- [ ] **Azure provider** - AKS-like experience on Azure
-- [ ] **GCP provider** - GKE-like experience on GCP
+- [ ] **Cluster auto-scaling** - Scale workers based on workload pressure
+- [ ] **Cluster templates** - Reusable cluster configurations beyond ButlerConfig defaults
+- [ ] **In-place Kubernetes upgrades** - Upgrade tenant cluster K8s version without rebuild
 
 ### Platform Maturity
 
-- [ ] **v1.0 release** - Stable API, production-ready
-- [ ] **High availability documentation** - Disaster recovery guides
-- [ ] **Performance benchmarks** - Published scaling limits
+- [ ] **v1.0 release** - Stable API graduation from v1alpha1 to v1
+- [ ] **High availability documentation** - Disaster recovery and backup guides
+- [ ] **Steward CNCF Sandbox submission** - Target 2027
 
 ---
 
 ## Future Vision
 
-### Concierge (Internal Developer Platform)
+### Butler Portal (Internal Developer Platform)
 
-Customized Backstage-based IDP that integrates with Butler:
+Backstage-based IDP that integrates with Butler:
 
+- Workspace federation across multiple Butler management clusters
 - Service catalog with Butler cluster creation
 - Developer self-service portal
 - Template-driven application onboarding
 
-### AI-Adjacent Services
-
-- **Knowledge ingestion plugins** - RAG for platform documentation
-- **Observability anomaly detection** - ML-powered alerting
-- **Natural language cluster management** - "Create a production cluster for team X"
-
 ### Ecosystem Expansion
 
-- **Crossplane integration** - Managed cloud resources
-- **Terraform provider** - IaC integration
+- **Crossplane integration** - Managed cloud resources alongside tenant clusters
+- **Terraform provider** - IaC integration for Butler resources
 - **Pulumi provider** - Modern IaC option
 
 ---
@@ -143,17 +112,37 @@ Customized Backstage-based IDP that integrates with Butler:
 - Harvester provider implementation
 - Nutanix provider implementation
 - butler-cli with butleradm and butlerctl
-- Helm chart packaging
-- OCI registry publishing
+- Helm chart packaging and OCI registry publishing
 
-### 2025 Q1 (Partial)
+### 2025 Q1-Q2
 
 - Butler Console (React + TypeScript)
 - butler-server API backend
 - Google SSO integration
-- Team-based multi-tenancy
+- Team-based multi-tenancy with resource quotas
 - ManagementAddon controller
-- Single-node topology support  
+- Single-node topology support
+- Microsoft Entra ID and Okta SSO
+
+### 2025 H2
+
+- Steward (community-governed Kamaji fork) stabilization
+- CAPI-Steward control plane provider
+- Talos worker support with talosconfig generation
+- Control plane exposure modes (Ingress, Gateway)
+- Enterprise IPAM with NetworkPool/IPAllocation
+- Configurable control plane resource limits
+
+### 2026 Q1
+
+- Cloud bootstrap (AWS, GCP, Azure) with butleradm
+- Cloud provider controllers (butler-provider-aws/gcp/azure)
+- Multi-OS worker provisioning (Talos, Rocky, Flatcar, Bottlerocket, Kairos)
+- Butler Image Factory (Phase 1)
+- ImageSync CRD and butlerctl image commands
+- LoadBalancerRequest CRD for cloud HA control planes
+- Butler Console ImageSync UI
+- Butler Portal v0.1.0 (Backstage workspaces plugin)
 
 ---
 
@@ -161,11 +150,10 @@ Customized Backstage-based IDP that integrates with Butler:
 
 We welcome community input on priorities:
 
-1. **Feature Requests**: Open a [GitHub Issue](https://github.com/butlerdotdev/butler/issues/new?template=feature_request.md)
+1. **Feature Requests**: Open a [GitHub Issue](https://github.com/butlerdotdev/butler/issues/new?template=feature_request.yml)
 2. **Discussions**: Join [GitHub Discussions](https://github.com/butlerdotdev/butler/discussions)
 3. **Design Proposals**: Submit a [design proposal](../../design/proposals/)
 
 ## See Also
 
 - [COMPONENTS.md](../../COMPONENTS.md) - Component status
-- [Compatibility Matrix](../../releases/compatibility-matrix.md) - Version support
