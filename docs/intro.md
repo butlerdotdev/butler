@@ -12,7 +12,7 @@ Butler provisions and manages Kubernetes clusters across heterogeneous infrastru
 
 - Tenant cluster provisioning in under 5 minutes
 - Hosted control planes via Steward (no dedicated control plane nodes)
-- Multi-provider: Harvester, Nutanix, Proxmox
+- Multi-provider: Harvester, Nutanix, Proxmox, AWS, GCP, Azure
 - Platform addons: Cilium, MetalLB, cert-manager, Longhorn
 - Web console with terminal access and addon management
 - CLI tools: `butleradm` (bootstrap), `butlerctl` (operations)
@@ -25,7 +25,7 @@ graph TB
         steward["Hosted Control Planes (Steward)"]
         capi["Cluster API<br/>Machine Lifecycle"]
         ctrl["Butler Controller<br/>TenantCluster CRD"]
-        prov["Provider Controllers<br/>Harvester / Nutanix / Proxmox"]
+        prov["Provider Controllers<br/>Harvester / Nutanix / AWS / GCP / Azure"]
         console["Console + Server<br/>Web UI and API"]
     end
 

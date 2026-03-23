@@ -323,5 +323,4 @@ spec:
 
 ## See Also
 
-- [Security Model](security-model.md) - Authentication and authorization
 - [Getting Started](../getting-started/) - Create your first team

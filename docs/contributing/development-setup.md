@@ -18,7 +18,7 @@ This guide covers setting up a development environment for Butler components.
 
 | Tool | Version | Purpose | Install |
 |------|---------|---------|---------|
-| Go | 1.22+ | Controller and CLI development | [go.dev](https://go.dev/doc/install) |
+| Go | 1.24+ | Controller and CLI development | [go.dev](https://go.dev/doc/install) |
 | Node.js | 20+ | Console frontend development | [nodejs.org](https://nodejs.org/) |
 | Docker | Latest | Container builds, KIND clusters | [docker.com](https://www.docker.com/get-started) |
 | kubectl | 1.28+ | Kubernetes interaction | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
@@ -38,7 +38,7 @@ This guide covers setting up a development environment for Butler components.
 ### Verify Installation
 
 ```bash
-go version       # go version go1.22.x
+go version       # go version go1.24.x
 node --version   # v20.x.x
 docker version   # Client and Server info
 kubectl version  # Client Version: v1.28+

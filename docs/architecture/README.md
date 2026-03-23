@@ -169,7 +169,6 @@ Allocates IP addresses to tenant clusters from shared pools:
 | [Addon System](addon-system.md) | Addon catalog and installation |
 | [Multi-Tenancy](multi-tenancy.md) | Teams, RBAC, and isolation |
 | [Networking](networking.md) | Network architecture, IPAM, and IP allocation |
-| [Security Model](security-model.md) | Authentication, authorization, and secrets |
 
 ---
 
