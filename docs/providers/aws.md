@@ -317,7 +317,7 @@ aws ec2 describe-instances \
 
 # Delete orphaned NLBs
 aws elbv2 describe-load-balancers \
-  --query 'LoadBalancers[?contains(LoadBalancerName, `butler-aws-test`)].LoadBalancerArn' \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `CLUSTER_NAME`)].LoadBalancerArn' \
   --output text \
   | xargs -I{} aws elbv2 delete-load-balancer --load-balancer-arn {}
 ```
@@ -353,7 +353,7 @@ aws iam simulate-principal-policy \
 
 ```bash
 aws elbv2 describe-target-health \
-  --target-group-arn arn:aws:elasticloadbalancing:REGION:ACCOUNT:targetgroup/butler-mgmt/XXXXX
+  --target-group-arn arn:aws:elasticloadbalancing:REGION:ACCOUNT:targetgroup/CLUSTER_NAME/XXXXX
 ```
 
 Common causes:

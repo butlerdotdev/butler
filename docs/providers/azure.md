@@ -361,7 +361,7 @@ az vm list -g butler-rg \
 
 # Wait ~180s for NICs to release, then delete NICs
 az network nic list -g butler-rg \
-  --query "[?contains(name, 'butler-azure-test')].name" -o tsv \
+  --query "[?contains(name, 'CLUSTER_NAME')].name" -o tsv \
   | xargs -I{} az network nic delete -g butler-rg -n {}
 
 # Delete public IPs
@@ -376,11 +376,11 @@ az network lb list -g butler-rg \
 
 # Delete orphaned disks
 az disk list -g butler-rg \
-  --query "[?contains(name, 'butler-azure-test')].name" -o tsv \
+  --query "[?contains(name, 'CLUSTER_NAME')].name" -o tsv \
   | xargs -I{} az disk delete -g butler-rg -n {} --yes
 
 # Delete availability set
-az vm availability-set delete -g butler-rg -n butler-azure-test-avset
+az vm availability-set delete -g butler-rg -n CLUSTER_NAME-avset
 ```
 
 ---

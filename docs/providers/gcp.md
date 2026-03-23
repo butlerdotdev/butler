@@ -149,7 +149,7 @@ Port details:
 
 ### Network Tags
 
-GCE instances are tagged with the cluster name (e.g., `butler-mgmt`). The GCP CCM uses these network tags to manage firewall rules for LoadBalancer services. Without network tags, the CCM logs: `no node tags supplied...Abort creating firewall rule`.
+GCE instances are tagged with the cluster name (e.g., `butler-gcp-test`). The GCP CCM uses these network tags to manage firewall rules for LoadBalancer services. Without network tags, the CCM logs: `no node tags supplied...Abort creating firewall rule`.
 
 The provider controller applies these tags automatically.
 
@@ -310,7 +310,7 @@ gcloud compute instances list \
 
 # Delete forwarding rules
 gcloud compute forwarding-rules list \
-  --filter="name~butler-gcp-test" \
+  --filter="name~CLUSTER_NAME" \
   --format="value(name,region)" \
   | while read name region; do
     gcloud compute forwarding-rules delete "$name" --region="$region" --quiet
@@ -318,7 +318,7 @@ gcloud compute forwarding-rules list \
 
 # Delete target pools
 gcloud compute target-pools list \
-  --filter="name~butler-gcp-test" \
+  --filter="name~CLUSTER_NAME" \
   --format="value(name,region)" \
   | while read name region; do
     gcloud compute target-pools delete "$name" --region="$region" --quiet
@@ -326,7 +326,7 @@ gcloud compute target-pools list \
 
 # Delete CCM-managed firewall rules
 gcloud compute firewall-rules list \
-  --filter="name~butler-gcp-test" \
+  --filter="name~CLUSTER_NAME" \
   --format="value(name)" \
   | while read name; do
     gcloud compute firewall-rules delete "$name" --quiet
@@ -365,7 +365,7 @@ Verify all three rules exist and include Cilium ports (TCP 4240, UDP 8472).
 **Symptom**: LoadBalancerRequest stays in `Creating`.
 
 ```bash
-gcloud compute target-pools get-health butler-gcp-test-tp --region=us-central1
+gcloud compute target-pools get-health CLUSTER_NAME-tp --region=us-central1
 ```
 
 Common causes:
