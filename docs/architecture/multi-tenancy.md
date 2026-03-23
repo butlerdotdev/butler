@@ -77,19 +77,17 @@ spec:
         role: operator
         
   # Resource defaults for new clusters
-  defaults:
+  clusterDefaults:
     kubernetesVersion: "v1.30.0"
-    workers:
-      replicas: 3
-      machineTemplate:
-        cpu: 4
-        memory: 8Gi
-        
-  # Resource quotas
-  quotas:
+    workerCount: 3
+    workerCPU: 4
+    workerMemoryGi: 8
+
+  # Resource limits
+  resourceLimits:
     maxClusters: 10
-    maxWorkersPerCluster: 20
-    maxTotalWorkers: 100
+    maxNodesPerCluster: 20
+    maxTotalNodes: 100
 ```
 
 ### Team Fields
@@ -100,8 +98,8 @@ spec:
 | `description` | Team description |
 | `access.users` | Individual user permissions |
 | `access.groups` | Group-based permissions (from IdP) |
-| `defaults` | Default values for new clusters |
-| `quotas` | Resource limits for the team |
+| `clusterDefaults` | Default values for new clusters |
+| `resourceLimits` | Resource limits for the team |
 
 ## Multi-Tenancy Modes
 
