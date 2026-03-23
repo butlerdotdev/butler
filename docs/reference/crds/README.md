@@ -27,7 +27,7 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 
 | CRD | Scope | Short Name | Description |
 |-----|-------|------------|-------------|
-| ButlerConfig | Cluster | `bc` | Platform-wide configuration |
+| [ButlerConfig](./butlerconfig.md) | Cluster | `bc` | Platform-wide configuration |
 | [ProviderConfig](./providerconfig.md) | Namespaced | `pc` | Infrastructure provider credentials |
 
 ### Multi-Tenancy
@@ -37,6 +37,12 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 | [Team](./team.md) | Cluster | `tm` | Team isolation boundary |
 | User | Cluster | — | User account |
 | IdentityProvider | Cluster | `idp` | SSO/OIDC configuration |
+
+### Images
+
+| CRD | Scope | Short Name | Description |
+|-----|-------|------------|-------------|
+| ImageSync | Namespaced | `is` | Sync OS images from Image Factory to providers |
 
 ### Addons
 
@@ -52,6 +58,13 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 |-----|-------|------------|-------------|
 | [NetworkPool](./networkpool.md) | Namespaced | `np` | IP address pool for on-prem IPAM |
 | [IPAllocation](./ipallocation.md) | Namespaced | `ipa` | Individual IP allocation from a pool |
+
+### Workspaces
+
+| CRD | Scope | Short Name | Description |
+|-----|-------|------------|-------------|
+| Workspace | Namespaced | `ws` | Butler Portal workspace |
+| WorkspaceTemplate | Cluster | `wst` | Workspace template definition |
 
 ## Steward Resources
 
@@ -70,7 +83,7 @@ Steward provides hosted control plane management.
 |-------|-------------|
 | `app.kubernetes.io/managed-by: butler` | Resource managed by Butler |
 | `butler.butlerlabs.dev/team: <name>` | Team ownership |
-| `butler.butlerlabs.dev/cluster: <name>` | Associated tenant cluster |
+| `butler.butlerlabs.dev/tenant: <name>` | Associated tenant cluster |
 | `butler.butlerlabs.dev/network-pool` | Associated network pool |
 | `butler.butlerlabs.dev/allocation-type` | IP allocation type (loadbalancer, nodes) |
 
