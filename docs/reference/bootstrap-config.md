@@ -15,6 +15,7 @@ The config is a plain YAML file passed to `butleradm bootstrap <provider> --conf
 | `network` | object | No | See defaults | Network configuration |
 | `talos` | object | No | See defaults | Talos Linux configuration |
 | `addons` | object | No | See defaults | Addon configuration |
+| `controlPlaneExposure` | object | No | `LoadBalancer` | How tenant control planes are exposed (LoadBalancer, Ingress, or Gateway) |
 | `providerConfig` | object | Yes | -- | Provider-specific settings (must match `provider` field) |
 
 ---
@@ -92,6 +93,56 @@ The config is a plain YAML file passed to `butleradm bootstrap <provider> --conf
 | `addons.console.ingress.tlsSecretName` | string | No | -- | TLS secret name (auto-generated if TLS enabled) |
 | `addons.console.auth.adminPassword` | string | No | `admin` | Initial admin password |
 | `addons.console.auth.jwtSecret` | string | No | (random) | JWT signing secret |
+
+---
+
+## controlPlaneExposure
+
+Configures how tenant control planes are exposed after bootstrap. This is a platform-level setting written to `ButlerConfig` during addon installation (step 11.5). If omitted, defaults to `LoadBalancer` mode.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `controlPlaneExposure.mode` | string | No | `LoadBalancer` | Exposure mode: `LoadBalancer`, `Ingress`, or `Gateway` |
+| `controlPlaneExposure.hostname` | string | Ingress/Gateway | -- | Wildcard domain for tenant API servers (e.g., `*.k8s.platform.example.com`) |
+| `controlPlaneExposure.ingressClassName` | string | No | -- | Ingress class when mode is `Ingress` (e.g., `haproxy`, `nginx`) |
+| `controlPlaneExposure.controllerType` | string | No | -- | Ingress controller type for TLS passthrough: `haproxy`, `nginx`, `traefik`, `generic` |
+| `controlPlaneExposure.gatewayRef` | string | Gateway | -- | Gateway resource reference when mode is `Gateway` (format: `namespace/name`) |
+
+### Exposure Modes
+
+**LoadBalancer** (default): Each tenant API server gets a dedicated LoadBalancer IP. Direct TCP access on port 6443. No SNI routing. Requires 1 IP per tenant from MetalLB (on-prem) or cloud LB. tcp-proxy is not required.
+
+**Ingress**: Multiple tenants share a single IP via an Ingress controller with TLS passthrough. SNI-based routing using `{cluster}.{namespace}.{hostname}` hostnames. Requires an Ingress controller that supports TLS passthrough (HAProxy, NGINX, or Traefik). tcp-proxy is auto-enabled to rewrite in-cluster `kubernetes.default.svc` endpoints.
+
+**Gateway**: Multiple tenants share a single IP via Gateway API TLSRoute. SNI-based routing like Ingress mode, but uses the Gateway API instead of Ingress resources. Requires a Gateway controller that supports TLSRoute. tcp-proxy is auto-enabled.
+
+### Examples
+
+LoadBalancer mode (default, can be omitted entirely):
+
+```yaml
+controlPlaneExposure:
+  mode: LoadBalancer
+```
+
+Ingress mode with HAProxy:
+
+```yaml
+controlPlaneExposure:
+  mode: Ingress
+  hostname: "*.k8s.butlerlabs.dev"
+  ingressClassName: haproxy
+  controllerType: haproxy
+```
+
+Gateway mode:
+
+```yaml
+controlPlaneExposure:
+  mode: Gateway
+  hostname: "*.k8s.butlerlabs.dev"
+  gatewayRef: "butler-system/tenant-gateway"
+```
 
 ---
 
