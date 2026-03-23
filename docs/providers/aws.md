@@ -317,7 +317,7 @@ aws ec2 describe-instances \
 
 # Delete orphaned NLBs
 aws elbv2 describe-load-balancers \
-  --query 'LoadBalancers[?contains(LoadBalancerName, `butler-mgmt`)].LoadBalancerArn' \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `butler-aws-test`)].LoadBalancerArn' \
   --output text \
   | xargs -I{} aws elbv2 delete-load-balancer --load-balancer-arn {}
 ```
