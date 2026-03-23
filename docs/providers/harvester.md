@@ -1,37 +1,45 @@
 # Harvester Provider Guide
 
-This guide covers setting up Butler with [Harvester HCI](https://harvesterhci.io/) as the infrastructure provider.
+> **Status: Stable.** E2E validated for single-node and HA topologies.
+
+Bootstrap a Butler management cluster on [Harvester HCI](https://harvesterhci.io/).
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Harvester Setup](#harvester-setup)
-- [Butler Configuration](#butler-configuration)
-- [Network Configuration](#network-configuration)
+- [Bootstrap Configuration](#bootstrap-configuration)
+- [Run Bootstrap](#run-bootstrap)
+- [Validation](#validation)
+- [Cleanup](#cleanup)
+- [Tenant Clusters on Harvester](#tenant-clusters-on-harvester)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-Butler uses the [CAPI KubeVirt provider](https://github.com/kubernetes-sigs/cluster-api-provider-kubevirt) (capk) to provision VMs on Harvester, which runs KubeVirt under the hood.
+Butler uses a thin provider controller (`butler-provider-harvester`) during bootstrap to provision VMs on Harvester via its Kubernetes API (Harvester runs KubeVirt under the hood). After the management cluster is running, the CAPI KubeVirt provider (CAPK) manages tenant cluster worker VM lifecycle.
 
 ```mermaid
 flowchart LR
-    Butler["Butler Controller"] --> CAPI["Cluster API"]
-    CAPI --> CAPK["KubeVirt Provider"]
-    CAPK --> Harvester["Harvester HCI"]
-    Harvester --> VMs["Virtual Machines"]
+    CLI["butleradm"] --> KIND["KIND Cluster"]
+    KIND --> Bootstrap["butler-bootstrap"]
+    KIND --> Provider["butler-provider-harvester"]
+    Bootstrap --> MR["MachineRequest CRs"]
+    Provider --> Harvester["Harvester HCI"]
+    Harvester --> VMs["Talos Linux VMs"]
 ```
 
 ### Key Components
 
 | Component | Purpose |
 |-----------|---------|
-| butler-provider-harvester | Translates MachineRequests to Harvester VMs |
-| CAPI KubeVirt Provider | Creates KubevirtMachine resources |
-| Harvester | Runs KubeVirt and manages VM lifecycle |
+| butler-provider-harvester | Provisions Harvester VMs from MachineRequest CRs during bootstrap |
+| CAPI KubeVirt Provider (CAPK) | Manages tenant cluster worker VMs after the management cluster is running |
+| kube-vip | Floating VIP for control plane HA |
+| MetalLB | LoadBalancer service implementation for on-prem |
 
 ---
 
@@ -40,17 +48,47 @@ flowchart LR
 ### Harvester Cluster
 
 - Harvester version 1.3.0 or later
-- Admin access to Harvester dashboard
-- Network connectivity from Butler management cluster to Harvester API
+- Admin access to the Harvester dashboard or API
+- Network connectivity from the bootstrap machine (your laptop/workstation) to the Harvester API
 
-### Required Resources
+### VM Image
 
-| Resource | Purpose |
-|----------|---------|
-| VM Network | Network for cluster nodes (VLAN-backed recommended) |
-| VM Image | OS image (Talos Linux for management, Rocky Linux for workers) |
-| SSH Key | For node access (Rocky Linux workers) |
-| Kubeconfig | Harvester API access |
+Upload a Talos Linux raw image to Harvester. The image must include the `iscsi-tools` and `qemu-guest-agent` extensions for Longhorn storage and IP reporting.
+
+Download from the Talos Image Factory:
+
+```
+https://factory.talos.dev/image/dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586/v1.12.1/metal-amd64.raw.xz
+```
+
+- **Schematic ID:** `dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586`
+- **Extensions included:** iscsi-tools, qemu-guest-agent
+
+Upload via Harvester Dashboard (Images > Create) or the Harvester API. Note the `namespace/name` after upload (e.g., `default/image-5rs6d`).
+
+### VM Network
+
+A VLAN-backed network configured in Harvester. The network must:
+- Provide DHCP or have static IP assignment
+- Allow outbound internet access (Talos pulls images, Helm fetches charts)
+- Support L2 ARP for kube-vip and MetalLB
+
+Note the `namespace/name` format (e.g., `default/vlan40-workloads`).
+
+### Harvester Kubeconfig
+
+Download from Harvester Dashboard > Support > Download Kubeconfig. Save to `~/.butler/harvester-kubeconfig`.
+
+Update the `server` URL in the kubeconfig to the external Harvester API address if needed.
+
+### IP Planning
+
+Reserve the following IPs on your VLAN. These must not overlap with DHCP ranges, existing VIPs, or other clusters:
+
+| Purpose | Example | Notes |
+|---------|---------|-------|
+| Control plane VIP | 10.40.0.230 | Single IP, used by kube-vip for API HA |
+| MetalLB pool | 10.40.0.240-10.40.0.250 | Range for LoadBalancer services (Traefik, tenant endpoints) |
 
 ---
 
@@ -58,91 +96,241 @@ flowchart LR
 
 ### 1. Create VM Network
 
-In Harvester Dashboard -> Networks -> Create:
+In Harvester Dashboard > Networks > Create:
 
-```yaml
-# Example VLAN network
-Name: workloads
-Namespace: default
-VLAN ID: 40
-Cluster Network: mgmt
-```
+| Field | Value |
+|-------|-------|
+| Name | vlan40-workloads |
+| Namespace | default |
+| VLAN ID | 40 |
+| Cluster Network | mgmt |
 
-**Result:** `default/workloads` network name
+**Result:** `default/vlan40-workloads` network name.
 
-### 2. Upload VM Images
+### 2. Upload Talos Image
 
-#### Talos Linux (Management Cluster)
+In Harvester Dashboard > Images > Create:
 
-Download the KubeVirt image from [Talos releases](https://github.com/siderolabs/talos/releases):
+| Field | Value |
+|-------|-------|
+| Name | talos-v1-12-1 |
+| Namespace | default |
+| Source | URL or File upload |
+| URL | `https://factory.talos.dev/image/dc7b152.../v1.12.1/metal-amd64.raw.xz` |
 
-```bash
-# Download Talos KubeVirt image
-curl -LO https://github.com/siderolabs/talos/releases/download/v1.9.0/nocloud-amd64.raw.xz
-xz -d nocloud-amd64.raw.xz
-```
+**Result:** `default/talos-v1-12-1` (or whatever the resulting `namespace/name` is).
 
-In Harvester Dashboard -> Images -> Create:
-- Name: `talos-1.9`
-- URL or upload the raw file
-- Namespace: `default`
-
-**Result:** `default/talos-1.9` image name
-
-#### Rocky Linux (Tenant Workers)
-
-Download Rocky Linux cloud image:
+### 3. Export Kubeconfig
 
 ```bash
-curl -LO https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
+# Save to standard Butler location
+cp /path/to/harvester-kubeconfig ~/.butler/harvester-kubeconfig
+
+# Verify access
+kubectl --kubeconfig ~/.butler/harvester-kubeconfig get nodes
 ```
-
-Upload to Harvester:
-- Name: `rocky-9-cloud`
-- Namespace: `default`
-
-**Result:** `default/rocky-9-cloud` image name
-
-### 3. Create SSH Key
-
-In Harvester Dashboard -> SSH Keys -> Create:
-
-```bash
-# Generate key pair (if needed)
-ssh-keygen -t ed25519 -f ~/.ssh/butler-ssh -N ""
-```
-
-Upload public key:
-- Name: `butler-ssh`
-- Namespace: `default`
-
-**Result:** `default/butler-ssh` SSH key name
-
-### 4. Export Kubeconfig
-
-In Harvester Dashboard -> Support -> Download Kubeconfig
-
-Or via CLI:
-```bash
-# From Harvester node
-cat /etc/rancher/rke2/rke2.yaml
-```
-
-Save as `harvester-kubeconfig.yaml` and update the server URL to the external address.
 
 ---
 
-## Butler Configuration
+## Bootstrap Configuration
 
-### 1. Create ProviderConfig Secret
+Create a config file at `~/.butler/bootstrap-harvester.yaml`:
 
-```bash
-kubectl create secret generic harvester-kubeconfig \
-  --from-file=kubeconfig=harvester-kubeconfig.yaml \
-  -n butler-system
+### Single-Node
+
+This config was used for E2E validation. Replace VIP, loadBalancerPool, networkName, and imageName with values from your Harvester environment.
+
+```yaml
+provider: harvester
+
+cluster:
+  name: butler-hvstr-test
+  topology: single-node
+  controlPlane:
+    replicas: 1
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+    extraDisks:
+      - sizeGB: 50
+
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.40.0.230
+  loadBalancerPool:
+    start: 10.40.0.240
+    end: 10.40.0.250
+
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  harvester:
+    kubeconfigPath: ~/.butler/harvester-kubeconfig
+    namespace: default
+    networkName: default/vlan40-workloads
+    imageName: default/image-5rs6d
 ```
 
-### 2. Create ProviderConfig Resource
+### HA
+
+```yaml
+provider: harvester
+
+cluster:
+  name: butler-hvstr-ha
+  topology: ha
+  controlPlane:
+    replicas: 3
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+  workers:
+    replicas: 2
+    cpu: 4
+    memoryMB: 8192
+    diskGB: 50
+    extraDisks:
+      - sizeGB: 50
+
+network:
+  podCIDR: 10.244.0.0/16
+  serviceCIDR: 10.96.0.0/12
+  vip: 10.40.0.231
+  loadBalancerPool:
+    start: 10.40.0.240
+    end: 10.40.0.250
+
+talos:
+  version: v1.12.1
+  schematic: dc7b152cb3ea99b821fcb7340ce7168313ce393d663740b791c36f6e95fc8586
+
+addons:
+  cni:
+    type: cilium
+  storage:
+    type: longhorn
+  loadBalancer:
+    type: metallb
+  console:
+    enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+
+providerConfig:
+  harvester:
+    kubeconfigPath: ~/.butler/harvester-kubeconfig
+    namespace: default
+    networkName: default/vlan40-workloads
+    imageName: default/image-5rs6d
+```
+
+---
+
+## Run Bootstrap
+
+```bash
+butleradm bootstrap harvester --config ~/.butler/bootstrap-harvester.yaml
+```
+
+For development:
+
+```bash
+butleradm bootstrap harvester \
+  --config ~/.butler/bootstrap-harvester.yaml \
+  --local --no-tui --skip-cleanup
+```
+
+---
+
+## Validation
+
+```bash
+export KUBECONFIG=~/.butler/butler-hvstr-test-kubeconfig
+
+# All nodes Ready
+kubectl get nodes
+
+# Cilium running
+kubectl get pods -n kube-system -l app.kubernetes.io/name=cilium
+
+# Longhorn running
+kubectl get pods -n longhorn-system
+
+# cert-manager running
+kubectl get pods -n cert-manager
+
+# Steward running
+kubectl get pods -n steward-system
+
+# Butler CRDs installed
+kubectl get crd | grep butler
+
+# kube-vip responding on VIP
+ping 10.40.0.230
+
+# MetalLB pool active, Traefik has a LoadBalancer IP
+kubectl get svc -n traefik-system
+
+# Console accessible
+kubectl get svc butler-console-frontend -n butler-system
+```
+
+### Console Credentials
+
+```bash
+kubectl get secret butler-console-admin -n butler-system \
+  -o jsonpath='{.data.admin-password}' | base64 -d && echo
+# Username: admin
+```
+
+### What You Have Now
+
+A Butler management cluster running on Harvester with:
+- Talos Linux nodes with Cilium CNI
+- kube-vip providing a floating VIP for the Kubernetes API
+- MetalLB and Traefik handling LoadBalancer and Ingress services
+- Longhorn distributed storage
+- Steward for hosted tenant control planes
+- Butler controller, CRDs, and web console
+
+To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
+
+---
+
+## Cleanup
+
+```bash
+# Delete KIND bootstrap cluster (if --skip-cleanup was used)
+kind delete cluster --name butler-bootstrap
+
+# Delete Harvester VMs via the Harvester Dashboard:
+# Virtual Machines > select butler-hvstr-test-cp-* and butler-hvstr-test-w-* > Actions > Delete
+```
+
+---
+
+## Tenant Clusters on Harvester
+
+After bootstrap, configure Harvester as a provider for tenant clusters:
+
+### Create ProviderConfig
 
 ```yaml
 apiVersion: butler.butlerlabs.dev/v1alpha1
@@ -151,169 +339,91 @@ metadata:
   name: harvester-prod
   namespace: butler-system
 spec:
-  type: harvester
+  provider: harvester
+  credentialsRef:
+    name: harvester-kubeconfig
+    namespace: butler-system
+  network:
+    mode: ipam
   harvester:
-    credentialsRef:
-      name: harvester-kubeconfig
-      key: kubeconfig
     namespace: default
     networkName: default/workloads
-    imageName: default/talos-1.9
+    imageName: default/talos-v1-12-1
     storageClassName: harvester-longhorn
 ```
 
-### 3. Set as Default Provider
+### Create Credentials Secret
 
-Update ButlerConfig:
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ButlerConfig
-metadata:
-  name: butler
-spec:
-  defaultProviderConfigRef:
-    name: harvester-prod
-```
-
----
-
-## Network Configuration
-
-### Recommended VLAN Layout
-
-| VLAN | Name | Subnet | Purpose |
-|------|------|--------|---------|
-| 20 | Management | 10.20.0.0/16 | Harvester management, infrastructure |
-| 30 | Storage | 10.30.0.0/16 | Storage traffic (iSCSI, NFS) |
-| 40 | Workloads | 10.40.0.0/16 | Kubernetes clusters |
-| 50 | External | 10.50.0.0/16 | External-facing services |
-
-### MetalLB Integration
-
-For tenant clusters to get LoadBalancer IPs, allocate pools from the workload VLAN:
-
-```yaml
-# In TenantCluster spec
-spec:
-  addons:
-    loadBalancer:
-      provider: metallb
-      addressPool: "10.40.1.0-10.40.1.50"
-```
-
-### Control Plane Endpoint
-
-For management cluster:
-- Reserve a VIP (e.g., `10.40.0.200`) 
-- kube-vip provides HA for control plane
-- MetalLB provides LoadBalancer for services
-
-For tenant clusters:
-- Steward creates LoadBalancer service per cluster
-- MetalLB assigns IPs from management cluster pool
-
----
-
-## Resource Specifications
-
-### Management Cluster Recommendations
-
-| Role | CPU | Memory | Disk | Count |
-|------|-----|--------|------|-------|
-| Control Plane | 4 | 16Gi | 100Gi | 3 (HA) or 1 (single-node) |
-| Worker | 8 | 32Gi | 200Gi | 0-3 |
-
-### Tenant Cluster Defaults
-
-| Role | CPU | Memory | Disk |
-|------|-----|--------|------|
-| Worker | 4 | 8Gi | 40Gi |
-
-Override in TenantCluster spec:
-
-```yaml
-spec:
-  workers:
-    replicas: 3
-    machineTemplate:
-      cpu: 8
-      memory: 16Gi
-      diskSize: 100Gi
+```bash
+kubectl create secret generic harvester-kubeconfig \
+  --from-file=kubeconfig=~/.butler/harvester-kubeconfig \
+  -n butler-system
 ```
 
 ---
 
 ## Troubleshooting
 
-### VM Not Starting
+### VMs Not Provisioning
 
-**Check Harvester logs:**
+**Symptom**: MachineRequest stuck in `Pending` or `Creating`.
+
+**Check:**
 ```bash
-kubectl logs -n harvester-system deploy/harvester-harvester -f
+# From KIND context (if --skip-cleanup was used)
+kubectl --context kind-butler-bootstrap logs -n butler-system deploy/butler-provider-harvester
+kubectl --context kind-butler-bootstrap get machinerequest -n butler-system
 ```
 
-**Check VM status:**
-```bash
-kubectl get virtualmachine -A
-kubectl describe virtualmachine <name> -n <namespace>
-```
+**Common causes:**
+- Harvester kubeconfig server URL is wrong (internal vs external address)
+- Image name doesn't match (wrong `namespace/name` format)
+- Network name doesn't match
+- Insufficient resources on Harvester cluster
 
-### Network Connectivity Issues
+### VIP Not Responding
 
-**Verify VLAN configuration:**
-- Ensure VLAN is created in Harvester
-- Check physical switch VLAN trunking
-- Verify cluster network attachment
+**Symptom**: Cannot reach the Kubernetes API on the VIP address after bootstrap.
 
-**Test from within VM:**
-```bash
-# SSH to Rocky Linux worker
-ssh -i ~/.ssh/butler-ssh rocky@<vm-ip>
-ping <gateway-ip>
-ping <api-server-ip>
-```
+**Check:**
+- Verify the VIP is not already in use (`arping -D <VIP>`)
+- Confirm kube-vip is running: `kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip`
+- Verify the VIP is on the same VLAN/subnet as the VM network
+- Check that the network supports gratuitous ARP (some virtual switches filter it)
 
-### Image Issues
+### MetalLB Pool Conflict
 
-**Verify image exists:**
-```bash
-kubectl get virtualmachineimage -n default
-```
+**Symptom**: Traefik service stuck on `<pending>`, no external IP assigned.
 
-**Check image import status:**
-```bash
-kubectl describe virtualmachineimage <name> -n default
-```
+**Check:**
+- Verify the pool range doesn't overlap with the VIP
+- Verify the pool IPs are not already in use by another cluster
+- Check MetalLB speaker pods: `kubectl get pods -n metallb-system`
+- Confirm the pool range is on the same L2 segment as the nodes
+
+### Image Format Wrong
+
+**Symptom**: VMs start but Talos never boots.
+
+The Harvester image must be the `metal-amd64.raw.xz` format from the Talos Image Factory, not the ISO or `nocloud` variant. Verify the schematic ID includes the `qemu-guest-agent` extension (required for Harvester to report VM IPs).
 
 ### Kubeconfig Issues
 
-**Test Harvester API access:**
 ```bash
-kubectl --kubeconfig=harvester-kubeconfig.yaml get nodes
+# Verify Harvester API access
+kubectl --kubeconfig ~/.butler/harvester-kubeconfig get nodes
 ```
 
-**Common issues:**
-- Wrong server URL (use external address)
-- Certificate validation (may need `insecure-skip-tls-verify: true` initially)
-- Firewall blocking port 6443
-
-### MachineRequest Stuck
-
-**Check provider controller logs:**
-```bash
-kubectl logs -n butler-system deploy/butler-provider-harvester -f
-```
-
-**Check MachineRequest status:**
-```bash
-kubectl describe machinerequest <name> -n <namespace>
-```
+Common issues:
+- Server URL points to internal cluster IP (use the external address)
+- Certificate verification fails (try `insecure-skip-tls-verify: true` for testing)
+- Firewall blocking port 6443 between your machine and Harvester
 
 ---
 
 ## See Also
 
-- [Getting Started](../getting-started/) - Bootstrap guide
-- [Architecture](../architecture/) - System design
-- [Nutanix Provider](nutanix.md) - Alternative provider
+- [Getting Started](../getting-started/) - Quick start guide
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
+- [Nutanix Provider](nutanix.md) - Alternative on-prem provider

@@ -4,9 +4,9 @@ This document describes how Butler bootstraps a management cluster from scratch,
 
 ## Overview
 
-Bootstrapping creates a new Butler management cluster on your infrastructure. The process uses a temporary [KIND](https://kind.sigs.k8s.io/) cluster to orchestrate the bootstrap, then cleans up after completion.
+The bootstrap process creates a Butler management cluster from scratch. A temporary [KIND](https://kind.sigs.k8s.io/) cluster orchestrates the bootstrap, then is deleted on completion.
 
-Butler supports two deployment models:
+Two deployment models:
 
 - **On-prem** (Harvester, Nutanix, Proxmox): Uses kube-vip for control plane HA with a floating virtual IP. MetalLB provides LoadBalancer services.
 - **Cloud** (GCP, AWS, Azure): Uses a cloud-native L4 load balancer for control plane HA. Cloud load balancers handle services natively.
@@ -31,7 +31,7 @@ Butler supports two deployment models:
 
 - Cloud credentials with compute and networking permissions
 - A VPC/VNet with a subnet for cluster nodes
-- Firewall rules allowing TCP 6443, 50000, and 50001 between nodes
+- Firewall rules allowing inter-node traffic: TCP 6443, 50000-50001, 2379-2380, 10250, 4240 and UDP 8472 (Cilium VXLAN)
 - A VM image (Talos Linux) available in the target region
 
 ## On-Prem Bootstrap Sequence
@@ -58,8 +58,10 @@ sequenceDiagram
     end
 
     rect rgb(230, 245, 255)
-        Note over Bootstrap,Infra: Phase 2: VM Provisioning
+        Note over Bootstrap,Infra: Phase 2: Image Sync + VM Provisioning
         Bootstrap->>Bootstrap: Watch ClusterBootstrap
+        Bootstrap->>KIND: Create ImageSync CR (if ButlerConfig has ImageFactory)
+        Bootstrap->>Bootstrap: Wait for ImageSync Ready (or skip if no ButlerConfig)
         Bootstrap->>Provider: Create MachineRequest CRs
         Provider->>Infra: Create VMs
         Infra-->>Provider: VMs running with IPs
@@ -84,9 +86,11 @@ sequenceDiagram
         Bootstrap->>MC: Install Longhorn (storage)
         Bootstrap->>MC: Install MetalLB (LoadBalancer services)
         Bootstrap->>MC: Install Traefik (ingress)
+        Bootstrap->>MC: Install Gateway API CRDs
         Bootstrap->>MC: Install Steward (hosted control planes)
         Bootstrap->>MC: Install CAPI + infrastructure providers
-        Bootstrap->>MC: Install Butler controller
+        Bootstrap->>MC: Install Butler CRDs + controller
+        Bootstrap->>MC: Install Butler Console
         Bootstrap->>MC: Install Flux (optional)
     end
 
@@ -125,7 +129,9 @@ sequenceDiagram
     end
 
     rect rgb(230, 245, 255)
-        Note over Bootstrap,Cloud: Phase 2: Infrastructure Provisioning
+        Note over Bootstrap,Cloud: Phase 2: Image Sync + Infrastructure Provisioning
+        Bootstrap->>KIND: Create ImageSync CR (if ButlerConfig has ImageFactory)
+        Bootstrap->>Bootstrap: Wait for ImageSync Ready (or skip if no ButlerConfig)
         Bootstrap->>KIND: Create LoadBalancerRequest CR
         Bootstrap->>Provider: Create MachineRequest CRs
         Provider->>Cloud: Provision cloud load balancer resources
@@ -151,11 +157,15 @@ sequenceDiagram
         Note over Bootstrap,MC: Phase 4: Addon Installation
         Note over Bootstrap,MC: kube-vip and MetalLB are SKIPPED for cloud
         Bootstrap->>MC: Install Cilium (CNI)
+        Bootstrap->>MC: Install Cloud Controller Manager
+        Bootstrap->>MC: Patch node providerIDs
         Bootstrap->>MC: Install cert-manager
         Bootstrap->>MC: Install Longhorn (storage)
+        Bootstrap->>MC: Install Gateway API CRDs
         Bootstrap->>MC: Install Steward (hosted control planes)
         Bootstrap->>MC: Install CAPI + cloud infrastructure providers
-        Bootstrap->>MC: Install Butler controller
+        Bootstrap->>MC: Install Butler CRDs + controller
+        Bootstrap->>MC: Install Butler Console (type: LoadBalancer)
         Bootstrap->>MC: Install Flux (optional)
     end
 
@@ -208,9 +218,13 @@ Internally:
 - Clean separation between orchestration and infrastructure
 - Can preserve for debugging with `--skip-cleanup`
 
-### Phase 2: VM Provisioning
+### Phase 2: Image Sync + VM Provisioning
 
-The bootstrap controller creates MachineRequest CRs for each node defined in the ClusterBootstrap spec. The provider controller watches these resources, creates VMs, and reports IP addresses.
+The bootstrap controller calls `reconcileImageSync()` before creating VMs. When a `ButlerConfig` with `spec.imageFactory.url` exists in the KIND cluster, this step creates an `ImageSync` CR that downloads the Talos image from Butler Image Factory and uploads it to the infrastructure provider. ImageSync uses deduplication labels (`schematic-id`, `image-version`, `image-arch`, `provider-config`) so multiple bootstraps reuse a single synced image. The controller blocks until ImageSync reaches `Ready` before proceeding.
+
+When no ButlerConfig exists in KIND (current default for `butleradm bootstrap`), ImageSync is skipped and images must be pre-uploaded to the provider. See each provider guide for image upload steps. Adding `ButlerConfig` creation to the bootstrap CLI is planned, which will make ImageSync the default path.
+
+The bootstrap controller then creates MachineRequest CRs for each node defined in the ClusterBootstrap spec. The provider controller watches these resources, creates VMs, and reports IP addresses.
 
 ```yaml
 apiVersion: butler.butlerlabs.dev/v1alpha1
@@ -246,19 +260,28 @@ Once all VMs are running (and for cloud, the LB endpoint is ready):
 
 Platform addons are installed in dependency order. The set of addons differs between on-prem and cloud:
 
-| Order | Addon | On-Prem | Cloud | Purpose |
-|-------|-------|---------|-------|---------|
-| 1 | kube-vip | Yes | No | Floating VIP for control plane HA |
+| Step | Addon | On-Prem | Cloud | Purpose |
+|------|-------|---------|-------|---------|
+| 1 | kube-vip | Yes | Skip | Floating VIP for control plane HA. Cloud uses LB instead. |
 | 2 | Cilium | Yes | Yes | CNI with kube-proxy replacement |
+| 2.5 | Cloud Controller Manager | Skip | Yes | AWS: Helm chart. GCP: embedded DaemonSet. Azure: embedded Deployment. Runs in service-controller-only mode. |
+| 2.6 | providerID patching | Skip | Yes | Patches `spec.providerID` on each node via kubectl. Required for CCM LB target registration. |
 | 3 | cert-manager | Yes | Yes | TLS certificate automation |
-| 4 | Longhorn | Yes | Yes | Distributed persistent storage |
-| 5 | MetalLB | Yes | No | LoadBalancer service implementation |
-| 6 | Traefik | Yes | No | Ingress controller |
-| 7 | Steward | Yes | Yes | Hosted tenant control planes |
-| 8 | CAPI + providers | Yes | Yes | Cluster API for tenant worker lifecycle |
-| 9 | Butler controller | Yes | Yes | Platform reconciliation controller |
-| 10 | Flux | Optional | Optional | GitOps controller |
-| 11 | Butler Console | Optional | Optional | Web UI |
+| 4 | Longhorn | Yes | Yes | Distributed persistent storage. Replica count matches topology. |
+| 5 | MetalLB | If pool set | Skip | LoadBalancer service implementation. Uses `network.loadBalancerPool` config. |
+| 6 | Traefik | Yes | Skip | Ingress controller. Cloud uses CCM for LB services directly. |
+| 7a | Gateway API CRDs | Yes | Yes | Gateway API custom resource definitions |
+| 7b | Steward | Yes | Yes | Hosted tenant control planes |
+| 8 | CAPI + providers | If enabled | If enabled | Cluster API for tenant worker lifecycle |
+| 9 | Flux | If enabled | If enabled | GitOps controller |
+| 9.5 | Butler CRDs | Yes | Yes | Butler custom resource definitions |
+| 9.6 | ProviderConfig | Yes | Yes | Copies provider config from KIND to management cluster |
+| 9.7 | Butler Addons | Yes | Yes | AddonDefinition catalog |
+| 10 | Butler controller | Yes | Yes | Platform reconciliation controller |
+| 11 | Butler | Yes | Yes | ButlerConfig and supporting resources |
+| 11.5 | ButlerConfig exposure | Yes | Yes | Exposes ButlerConfig to management cluster |
+| 12 | Butler Console | Optional | Optional | Web UI. On-prem: Ingress via Traefik. Cloud: `type: LoadBalancer` with cloud LB. |
+| 12.5 | Azure LB backend pool | Skip | Azure only | Workaround for CCM v1.31 `vmType=standard` bug that doesn't auto-populate LB backend pools. Adds nodes to backend pool via Azure REST API. |
 
 ### Phase 5: Completion
 
@@ -320,6 +343,32 @@ Single-node topology skips kube-vip (no HA needed with one node), forces Longhor
 - GCP health checks come from `130.211.0.0/22` and `35.191.0.0/16`
 - AWS NLB health checks come from within the VPC
 - Confirm kube-apiserver is listening on port 6443
+
+### Cloud-Specific Failure Modes
+
+**CCM deadlock (all cloud providers):**
+Setting `--cloud-provider=external` on the kubelet adds an `node.cloudprovider.kubernetes.io/uninitialized` taint that blocks ALL pods until the CCM removes it. But the CCM is itself a pod, creating a deadlock. Butler avoids this by NOT setting the flag. The CCM runs in service-controller-only mode (handles `type: LoadBalancer` services) and does not manage node lifecycle. The providerID is patched directly via kubectl in step 2.6.
+
+**Azure public IP quota exceeded:**
+Standard Public IPs default to 3 per region on restricted and free-tier subscriptions. Single-node needs 2 PIPs (1 VM + 1 console LB). HA needs 6 (5 VMs + 1 LB). If you see `PublicIPCountLimitReached` in the provider logs, request a quota increase through the Azure portal under Subscription > Usage + quotas. Self-service quota increase via `az quota create` may fail on restricted subscriptions.
+
+**Azure CCM backend pool empty:**
+Azure CCM v1.31 with `vmType=standard` does not auto-populate LB backend pools. The initial backend sync runs before any LoadBalancer services exist, and no subsequent sync is triggered when the console service is created. Butler handles this automatically in step 12.5 by calling the Azure REST API to add each node's NIC to the backend pool. If step 12.5 fails, check the bootstrap controller logs for Azure REST API errors.
+
+**GCP CCM nodeipam crash:**
+The GCP CCM logs `error running controllers: the AllocateNodeCIDRs is not enabled` when the nodeipam controller tries to allocate pod CIDRs. This is expected because Cilium manages pod IPAM. Butler's embedded CCM manifest includes `--controllers=*,-nodeipam --allocate-node-cidrs=false` to disable the nodeipam controller.
+
+**GCP CCM network tags missing:**
+The GCP CCM logs `no node tags supplied...Abort creating firewall rule` when creating LoadBalancer service firewall rules. The CCM needs network tags on instances to scope rules. Butler's provider controller tags instances with the cluster name, and the CCM `cloud-config` includes `node-tags = <clusterName>`.
+
+**providerID not set on nodes:**
+Since the CCM runs in service-controller-only mode (no `--cloud-provider=external` flag on kubelet), it does not manage node lifecycle or set `spec.providerID`. The bootstrap controller patches providerIDs directly in step 2.6 using the format specific to each provider (e.g., `aws:///<zone>/<instance-id>`, `gce://<project>/<zone>/<instance>`, `azure:///subscriptions/...`). Without providerIDs, the CCM cannot map Kubernetes nodes to cloud instances for LB target registration.
+
+**MetalLB ARP not working on cloud networks:**
+Cloud networks (AWS VPC, GCP VPC, Azure VNet) do not forward L2 ARP broadcasts. kube-vip and MetalLB both rely on ARP to claim IP addresses. Butler automatically skips kube-vip and MetalLB for cloud providers, using a cloud load balancer for the control plane endpoint and the CCM for LoadBalancer services.
+
+**Corporate proxy / Zscaler blocking KIND connectivity:**
+The KIND bootstrap cluster runs inside a Docker container and may not have access to corporate DNS servers or Zscaler-proxied infrastructure endpoints (Harvester, Nutanix Prism Central). For Nutanix, use the `hostAliases` field in the provider config to inject `/etc/hosts` entries into the KIND container. For other providers, add entries to the Docker host's `/etc/hosts` or configure Docker's DNS settings.
 
 ### Preserving KIND Cluster
 
