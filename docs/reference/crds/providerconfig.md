@@ -124,6 +124,8 @@ Configuration for [Microsoft Azure](https://azure.microsoft.com/).
 | `location` | string | No | | Azure region (e.g., `eastus`, `westeurope`) |
 | `vnetName` | string | No | | Virtual network name |
 | `subnetName` | string | No | | Subnet name within the VNet |
+| `vmSize` | string | No | | Default Azure VM size (e.g., `Standard_D4s_v3`) |
+| `imageURN` | string | No | | VM image reference. Supports URN format (`publisher:offer:sku:version`), managed image resource ID, or shared gallery image version ID |
 
 ### AWSConfig
 
@@ -144,8 +146,15 @@ Configuration for [Google Cloud Platform](https://cloud.google.com/).
 |-------|------|----------|---------|-------------|
 | `projectID` | string | Yes | | GCP project ID |
 | `region` | string | Yes | | GCP region (e.g., `us-central1`, `europe-west1`) |
+| `zone` | string | No | `{region}-a` | GCP compute zone (e.g., `us-central1-a`) |
 | `network` | string | No | | VPC network name |
 | `subnetwork` | string | No | | Subnetwork name within the VPC |
+| `machineType` | string | No | | Default GCE machine type (e.g., `n2-standard-4`) |
+| `imageProject` | string | No | | GCP project containing the source image |
+| `imageFamily` | string | No | | Image family to use (e.g., `talos-v1-12`). Ignored if `image` is specified |
+| `image` | string | No | | Specific image name. Takes precedence over `imageFamily` |
+| `serviceAccount` | string | No | | GCE service account email for VM instances |
+| `tags` | []string | No | | Network tags applied to VM instances for firewall rules |
 
 ---
 
@@ -375,7 +384,7 @@ stringData:
 
 | Key | Description |
 |-----|-------------|
-| `serviceAccount` | GCP service account key in JSON format |
+| `serviceAccountKey` | GCP service account key in JSON format |
 
 ```yaml
 apiVersion: v1
@@ -385,7 +394,7 @@ metadata:
   namespace: butler-system
 type: Opaque
 stringData:
-  serviceAccount: |
+  serviceAccountKey: |
     {
       "type": "service_account",
       "project_id": "my-project",
