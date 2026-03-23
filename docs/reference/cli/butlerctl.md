@@ -15,11 +15,10 @@ butlerctl [command] [flags]
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--kubeconfig` | | Path to kubeconfig file (default: `~/.kube/config`) |
-| `--context` | | Kubernetes context to use |
-| `--namespace` | `-n` | Namespace for resources |
-| `--output` | `-o` | Output format: `table`, `yaml`, `json` |
+| `--verbose` | `-v` | Enable verbose output |
 | `--help` | `-h` | Help for command |
+
+> **Note:** Kubeconfig resolution follows the standard Kubernetes convention: `--kubeconfig` flag on subcommands, `KUBECONFIG` environment variable, or `~/.kube/config` default. Namespace and output format flags are available on individual subcommands, not globally.
 
 ---
 

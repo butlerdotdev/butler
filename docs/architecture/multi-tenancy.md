@@ -112,16 +112,16 @@ metadata:
   name: butler
 spec:
   multiTenancy:
-    mode: Enforced  # enforced, optional, or disabled
+    mode: Enforced  # Enforced, Optional, or Disabled
 ```
 
 ### Mode Comparison
 
 | Mode | Team Required | Use Case |
 |------|---------------|----------|
-| `enforced` | Yes | Enterprise with strict isolation |
-| `optional` | No | Gradual adoption |
-| `disabled` | No | Single team or simple setup |
+| `Enforced` | Yes | Enterprise with strict isolation |
+| `Optional` | No | Gradual adoption |
+| `Disabled` | No | Single team or simple setup |
 
 ### Enforced Mode
 

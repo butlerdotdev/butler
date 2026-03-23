@@ -114,7 +114,7 @@ spec:
 | `dataStoreRef` | object | No | | Reference to Steward DataStore |
 | `serviceType` | string | No | | LoadBalancer, NodePort, or ClusterIP. Inherits from ButlerConfig if not set |
 | `certSANs` | array | No | | Additional SANs for API server cert |
-| `externalCloudProvider` | bool | No | `true` | Enable `--cloud-provider=external` on apiserver and controller-manager. Required for Harvester, vSphere, and cloud providers |
+| `externalCloudProvider` | *bool | No | `true` | Enable `--cloud-provider=external` on apiserver and controller-manager. Required for Harvester, vSphere, and cloud providers |
 | `resources` | object | No | | Per-component resource limits. Overrides ButlerConfig defaults |
 
 ### controlPlane.resources

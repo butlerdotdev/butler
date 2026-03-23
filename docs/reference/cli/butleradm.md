@@ -15,9 +15,8 @@ butleradm [command] [flags]
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--kubeconfig` | | Path to kubeconfig file |
-| `--context` | | Kubernetes context to use |
-| `--output` | `-o` | Output format: `table`, `yaml`, `json` |
+| `--config` | `-c` | Path to config file |
+| `--verbose` | `-v` | Enable verbose output |
 | `--help` | `-h` | Help for command |
 
 ---

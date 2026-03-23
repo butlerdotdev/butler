@@ -17,6 +17,8 @@ Namespaced
 
 `pc`
 
+> **Note:** `kubectl get pc` resolves to the built-in PriorityClass resource. Use the full name: `kubectl get providerconfigs`.
+
 ## Finalizer
 
 `butler.butlerlabs.dev/providerconfig`
@@ -206,7 +208,7 @@ IPAM mode (`ipam`) is required for on-premises providers and is forbidden for cl
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `name` | string | Yes | | Name of the IP address pool resource |
-| `priority` | int32 | No | `0` | Pool selection priority. Lower values indicate higher priority (0 is tried first) |
+| `priority` | *int32 | No | `0` | Pool selection priority. Lower values indicate higher priority (0 is tried first) |
 
 ### LoadBalancerConfig
 
