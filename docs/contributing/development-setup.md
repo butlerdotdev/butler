@@ -1,13 +1,11 @@
+---
+title: Development Setup
+sidebar_position: 2
+---
+
 # Development Setup
 
 This guide covers setting up a development environment for Butler components.
-
-## Table of Contents
-
-- [Prerequisites](#prerequisites)
-- [Repository Setup](#repository-setup)
-- [Local Development](#local-development)
-- [Testing](#testing)
 - [Debugging](#debugging)
 
 ---
