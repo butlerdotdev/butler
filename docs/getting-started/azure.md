@@ -1,3 +1,8 @@
+---
+title: Azure
+sidebar_position: 6
+---
+
 # Azure Provider Guide
 
 > **Status: Stable.** E2E validated for single-node and HA topologies.

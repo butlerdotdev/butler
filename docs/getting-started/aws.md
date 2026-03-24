@@ -1,3 +1,8 @@
+---
+title: AWS
+sidebar_position: 4
+---
+
 # AWS Provider Guide
 
 > **Status: Stable.** E2E validated for single-node and HA topologies.

@@ -1,3 +1,8 @@
+---
+title: GCP
+sidebar_position: 5
+---
+
 # GCP Provider Guide
 
 > **Status: Stable.** E2E validated for single-node and HA topologies.

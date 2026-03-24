@@ -1,3 +1,8 @@
+---
+title: Harvester
+sidebar_position: 2
+---
+
 # Harvester Provider Guide
 
 > **Status: Stable.** E2E validated for single-node and HA topologies.
