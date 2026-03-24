@@ -265,4 +265,4 @@ spec:
 
 - [IPAllocation](./ipallocation.md) - Individual IP allocations from a NetworkPool
 - [ProviderConfig](./providerconfig.md) - Provider configuration that references NetworkPools via `spec.network.poolRefs`
-- [Networking Architecture](../../architecture/networking.md) - How Butler manages on-premises networking
+- [IPAM Internals](../../architecture/ipam.md) -- How Butler manages on-premises networking

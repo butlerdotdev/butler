@@ -292,4 +292,4 @@ spec:
 
 - [NetworkPool](./networkpool.md) - The IP address pool that IPAllocations draw from
 - [TenantCluster](./tenantcluster.md) - Creates IPAllocations during cluster provisioning
-- [Networking Architecture](../../architecture/networking.md) - How Butler manages on-premises networking
+- [IPAM Internals](../../architecture/ipam.md) -- How Butler manages on-premises networking
