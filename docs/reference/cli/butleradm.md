@@ -385,4 +385,4 @@ butleradm version
 
 - [butlerctl](./butlerctl.md) - Tenant cluster management CLI
 - [Getting Started](../../getting-started/) - Bootstrap your first cluster
-- [Provider Guides](../../providers/) - Infrastructure provider setup
+- [Provider Guides](../../getting-started/) -- Infrastructure provider setup

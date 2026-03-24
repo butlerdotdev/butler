@@ -544,4 +544,4 @@ spec:
 - [MachineRequest](./machinerequest.md) - VM provisioning interface
 - [ProviderConfig](./providerconfig.md) - infrastructure credentials
 - [Bootstrap Flow](../../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
-- [Provider Guides](../../providers/) - per-provider setup instructions
+- [Provider Guides](../../getting-started/) -- Per-provider setup instructions
