@@ -1,74 +1,11 @@
-# Addon System
-
-This document describes Butler's addon management system for extending cluster functionality.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Addon Types](#addon-types)
-- [AddonDefinition](#addondefinition)
-- [TenantAddon](#tenantaddon)
-- [ManagementAddon](#managementaddon)
-- [Built-in Addons](#built-in-addons)
-- [Custom Addons](#custom-addons)
-
+---
+title: Addon System
+sidebar_position: 4
 ---
 
-## Overview
+# Addon System
 
-Butler's addon system provides a declarative way to install and manage applications on both management and tenant clusters. Addons are Helm charts wrapped with Butler metadata and lifecycle management.
-
-```mermaid
-flowchart TB
-    subgraph Catalog["Addon Catalog"]
-        AD1["AddonDefinition: cilium"]
-        AD2["AddonDefinition: metallb"]
-        AD3["AddonDefinition: prometheus"]
-    end
-    
-    subgraph Management["Management Cluster"]
-        MA1["ManagementAddon: victoria-metrics"]
-        MA2["ManagementAddon: grafana"]
-    end
-    
-    subgraph Tenant["Tenant Clusters"]
-        TA1["TenantAddon: prometheus"]
-        TA2["TenantAddon: traefik"]
-    end
-    
-    AD1 --> TC["TenantCluster.spec.addons"]
-    AD2 --> TC
-    AD3 --> TA1
-    
-    AD1 --> MA1
-    AD2 --> MA2
-```
-
-## Addon Types
-
-### Platform Addons
-
-Required for cluster operation. Installed automatically during cluster creation.
-
-| Addon | Purpose | Removable |
-|-------|---------|-----------|
-| Cilium | CNI networking | No |
-| MetalLB | LoadBalancer services | No* |
-| kube-vip | Control plane HA | No |
-
-*Required for on-premises deployments
-
-### Optional Addons
-
-Can be installed/removed by users.
-
-| Category | Examples |
-|----------|----------|
-| Storage | Longhorn, OpenEBS |
-| Ingress | Traefik, nginx-ingress |
-| Certificates | cert-manager |
-| Monitoring | Prometheus, Victoria Metrics |
-| Logging | Loki, Fluentbit |
+This document covers addon lifecycle management, installation flows, and custom addon creation. For an introduction to addon types and the three addon CRDs, see [Concepts: Addons](../concepts/addons.md).
 
 ## AddonDefinition
 
@@ -314,5 +251,6 @@ spec:
 
 ## See Also
 
-- [Tenant Lifecycle](tenant-lifecycle.md) - How addons are installed during cluster creation
-- [Getting Started](../getting-started/) - Install your first addon
+- [Concepts: Addons](../concepts/addons.md) -- Addon types and CRD overview
+- [Tenant Lifecycle](tenant-lifecycle.md) -- How addons are installed during cluster creation
+- [Getting Started](../getting-started/) -- Install your first addon
