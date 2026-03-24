@@ -1,3 +1,8 @@
+---
+title: Introduction
+sidebar_position: 1
+---
+
 # Butler
 
 Kubernetes-native multi-cluster management platform.
