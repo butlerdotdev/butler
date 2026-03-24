@@ -1,19 +1,13 @@
-# Butler Architecture
-
-This section documents Butler's technical architecture, including system design, component interactions, and data flows.
-
-## Table of Contents
-
-- [System Overview](#system-overview)
-- [Components](#components)
-- [Key Flows](#key-flows)
-- [Detailed Documentation](#detailed-documentation)
-
+---
+title: Architecture
+sidebar_position: 1
 ---
 
-## System Overview
+# Butler Architecture
 
-Butler is a Kubernetes-native platform built on CRDs and operators. All state is stored in Kubernetes, enabling GitOps workflows and standard Kubernetes tooling.
+Butler is a Kubernetes-native platform built on CRDs and operators. All state lives in Kubernetes, enabling GitOps workflows and standard tooling.
+
+## System Context
 
 ```mermaid
 C4Context
@@ -37,11 +31,7 @@ C4Context
     Rel(butler, idp, "Authenticates", "OIDC")
 ```
 
----
-
-## Components
-
-### Management Cluster Components
+## Management Cluster Components
 
 ```mermaid
 flowchart TB
@@ -100,11 +90,9 @@ Each tenant cluster includes:
 | cert-manager | TLS certificate management |
 | Traefik | Ingress controller (optional) |
 
----
-
 ## Key Flows
 
-### Bootstrap Flow
+### Bootstrap
 
 Creates a management cluster from scratch:
 
@@ -121,7 +109,7 @@ Creates a management cluster from scratch:
 
 ### Tenant Cluster Creation
 
-Creates a new tenant cluster:
+Creates a tenant cluster:
 
 1. User creates TenantCluster CR
 2. Controller creates StewardControlPlane (hosted CP)
@@ -129,7 +117,7 @@ Creates a new tenant cluster:
 4. CAPI provisions worker VMs
 5. Workers bootstrap and join cluster
 6. Controller installs platform addons
-7. Cluster marked as Running
+7. Cluster transitions to Ready
 
 [Detailed tenant lifecycle](tenant-lifecycle.md)
 
@@ -141,7 +129,7 @@ Installs an addon on a cluster:
 2. Controller retrieves AddonDefinition
 3. Controller gets tenant cluster kubeconfig
 4. Controller installs Helm chart
-5. Addon marked as Installed
+5. Addon transitions to Installed
 
 [Detailed addon system](addon-system.md)
 
@@ -154,11 +142,9 @@ Allocates IP addresses to tenant clusters from shared pools:
 3. TenantCluster provisioning creates IPAllocation (Pending)
 4. NetworkPool controller allocates IPs using best-fit algorithm
 5. TenantCluster configures MetalLB with allocated ranges
-6. On deletion, IPs are released back to the pool
+6. On deletion, IPs return to the pool
 
-[Detailed networking architecture](networking.md)
-
----
+[IPAM internals](ipam.md)
 
 ## Detailed Documentation
 
@@ -167,16 +153,12 @@ Allocates IP addresses to tenant clusters from shared pools:
 | [Bootstrap Flow](bootstrap-flow.md) | Management cluster creation process |
 | [Tenant Lifecycle](tenant-lifecycle.md) | Tenant cluster provisioning and management |
 | [Addon System](addon-system.md) | Addon catalog and installation |
-| [Multi-Tenancy](multi-tenancy.md) | Teams, RBAC, and isolation |
-| [Networking](networking.md) | Network architecture, IPAM, and IP allocation |
-
----
+| [Multi-Tenancy](multi-tenancy.md) | RBAC implementation and namespace isolation |
+| [IPAM Internals](ipam.md) | Bitmap allocator, elastic scaling, garbage collection |
 
 ## Design Decisions
 
-Architectural decisions are documented as ADRs in [design/adr/](../../design/adr/).
-
-Key decisions:
+Architectural decisions live in [design/adr/](../../design/adr/).
 
 | ADR | Decision |
 |-----|----------|

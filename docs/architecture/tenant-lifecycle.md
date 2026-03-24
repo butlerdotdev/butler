@@ -1,3 +1,8 @@
+---
+title: Tenant Lifecycle
+sidebar_position: 3
+---
+
 # Tenant Cluster Lifecycle
 
 This document describes how Butler provisions and manages tenant clusters.
@@ -120,7 +125,7 @@ sequenceDiagram
         Controller->>API: Update status: Ready
     end
     
-    Controller-->>User: Cluster ready!
+    Controller-->>User: Cluster ready
 ```
 
 ## CAPI Resources Created
@@ -210,10 +215,13 @@ Worker nodes use kubeadm to join the cluster. The bootstrap process:
 
 ### Node OS Support
 
-| OS | Status | Use Case |
-|----|--------|----------|
-| Rocky Linux 9 | Supported | Default for Harvester |
-| Talos Linux | Experimental | Immutable nodes |
+| OS | Bootstrap Method | Status |
+|----|-----------------|--------|
+| Talos Linux | Machine config via `dataSecretName` | Stable |
+| Rocky Linux 9 | CABPK KubeadmConfigTemplate via `configRef` | Stable |
+| Flatcar Container Linux | Ignition JSON via `dataSecretName` | Stable |
+| Bottlerocket | TOML settings via `dataSecretName` | Beta |
+| Kairos | Cloud-config YAML via `dataSecretName` | Beta |
 
 ## Addon Installation
 
@@ -331,6 +339,6 @@ status:
 
 ## See Also
 
-- [Bootstrap Flow](bootstrap-flow.md) - Management cluster creation
-- [Addon System](addon-system.md) - Addon catalog and management
-- [Getting Started](../getting-started/) - Create your first cluster
+- [Bootstrap Flow](bootstrap-flow.md) -- Management cluster creation
+- [Addon System](addon-system.md) -- Addon catalog and management
+- [Getting Started](../getting-started/first-tenant-cluster.md) -- Create your first cluster

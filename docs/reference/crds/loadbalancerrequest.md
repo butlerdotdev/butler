@@ -235,6 +235,6 @@ spec:
 - [ClusterBootstrap](./clusterbootstrap.md) - creates LoadBalancerRequest during cloud bootstrap
 - [ProviderConfig](./providerconfig.md) - cloud credentials referenced by `providerConfigRef`
 - [Bootstrap Flow](../../architecture/bootstrap-flow.md) - end-to-end bootstrap sequence
-- [GCP Provider Guide](../../providers/gcp.md)
-- [AWS Provider Guide](../../providers/aws.md)
-- [Azure Provider Guide](../../providers/azure.md)
+- [GCP Provider Guide](../../getting-started/gcp.md)
+- [AWS Provider Guide](../../getting-started/aws.md)
+- [Azure Provider Guide](../../getting-started/azure.md)

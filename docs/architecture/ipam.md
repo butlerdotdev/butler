@@ -1,33 +1,11 @@
-# Networking Architecture
-
-This document describes Butler's networking subsystem, including IP Address Management (IPAM), network pool allocation, elastic scaling, and integration with MetalLB on tenant clusters.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Networking Modes](#networking-modes)
-- [CRD Resources](#crd-resources)
-  - [NetworkPool](#networkpool)
-  - [IPAllocation](#ipallocation)
-  - [ProviderConfig Network Configuration](#providerconfig-network-configuration)
-- [Controllers](#controllers)
-- [Allocation Flow](#allocation-flow)
-  - [Static IPAM](#static-ipam)
-  - [Elastic IPAM](#elastic-ipam)
-  - [Cloud Provider Bypass](#cloud-provider-bypass)
-- [Best-Fit Bitmap Allocator](#best-fit-bitmap-allocator)
-- [Cleanup and Garbage Collection](#cleanup-and-garbage-collection)
-- [Labels and Discovery](#labels-and-discovery)
-- [Quotas and Capacity Planning](#quotas-and-capacity-planning)
-- [Observability](#observability)
-- [Examples](#examples)
-- [Troubleshooting](#troubleshooting)
-
+---
+title: IPAM Internals
+sidebar_position: 5
 ---
 
-## Overview
+# IPAM Internals
 
-Butler's networking subsystem provides automated IP address management for on-premises tenant clusters. When tenant clusters run on bare-metal or hyperconverged infrastructure (Harvester, Nutanix, Proxmox), there is no cloud provider to assign LoadBalancer IPs. Butler fills this gap with a CRD-driven IPAM system that allocates contiguous IP ranges from administrator-defined pools and configures MetalLB on each tenant cluster.
+This document covers the implementation of Butler's IP Address Management subsystem: the bitmap allocator, controller interactions, elastic scaling algorithm, and garbage collection. For a user-facing introduction to IPAM concepts, see [Concepts: Networking](../concepts/networking.md).
 
 The subsystem consists of three CRDs and four cooperating controllers:
 
@@ -56,35 +34,6 @@ Key design principles:
 - **Best-fit allocation**: The bitmap allocator selects the smallest free block that satisfies each request, reducing fragmentation over the pool's lifetime.
 - **Three-layer cleanup**: TenantCluster deletion, IPAllocation finalizers, and orphan garbage collection ensure IP addresses are always returned to the pool.
 - **Cloud-native bypass**: Cloud providers skip the entire IPAM subsystem. When `spec.network.mode` is `cloud`, the TenantCluster controller returns early and the cloud provider's native LoadBalancer handles IP assignment.
-
----
-
-## Networking Modes
-
-Butler supports two networking modes, configured per ProviderConfig:
-
-| Mode | IPAM Active | MetalLB Installed | Use Case |
-|------|-------------|-------------------|----------|
-| `ipam` | Yes | Yes | On-premises: Harvester, Nutanix, Proxmox |
-| `cloud` | No | No | Cloud providers with native LoadBalancers |
-
-The mode is set on the ProviderConfig:
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ProviderConfig
-metadata:
-  name: harvester-prod
-  namespace: butler-system
-spec:
-  provider: harvester
-  network:
-    mode: ipam  # or "cloud"
-```
-
-When mode is `cloud` (the default), the TenantCluster controller's `reconcileIPAllocation()` returns immediately with `(true, nil)`, and `isElasticIPAM()` returns `false`. No NetworkPool, IPAllocation, or MetalLB resources are created.
-
----
 
 ## CRD Resources
 
@@ -1125,7 +1074,7 @@ kubectl get ipallocation -n butler-system \
 
 ## See Also
 
+- [Concepts: Networking](../concepts/networking.md) -- IPAM modes, NetworkPool overview, elastic scaling
 - [Tenant Lifecycle](tenant-lifecycle.md) -- How tenant clusters are provisioned and managed
-- [Addon System](addon-system.md) -- MetalLB is installed as a platform addon
-- [Multi-Tenancy](multi-tenancy.md) -- How teams and namespaces interact with IPAM
+- [Addon System](addon-system.md) -- MetalLB installation as a platform addon
 - [Bootstrap Flow](bootstrap-flow.md) -- Management cluster MetalLB setup

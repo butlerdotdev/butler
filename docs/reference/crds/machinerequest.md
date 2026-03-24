@@ -163,4 +163,4 @@ butler-mgmt-w-0     butler-mgmt-w-0      worker          Running   10.40.0.20   
 
 - [ClusterBootstrap](./clusterbootstrap.md) - creates MachineRequests during management cluster bootstrap
 - [ProviderConfig](./providerconfig.md) - credentials referenced by `providerRef`
-- [Provider Guides](../../providers/) - per-provider setup instructions
+- [Provider Guides](../../getting-started/) -- Per-provider setup instructions

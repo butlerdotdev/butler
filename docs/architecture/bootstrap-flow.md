@@ -1,3 +1,8 @@
+---
+title: Bootstrap Flow
+sidebar_position: 2
+---
+
 # Bootstrap Flow
 
 This document describes how Butler bootstraps a management cluster from scratch, covering both on-prem and cloud provider paths.
@@ -396,8 +401,7 @@ butleradm bootstrap gcp --config bootstrap.yaml --dry-run
 
 ## See Also
 
-- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) - full spec reference
-- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) - cloud LB provisioning
-- [MachineRequest CRD](../reference/crds/machinerequest.md) - VM provisioning interface
-- [Provider Guides](../providers/) - per-provider setup and configuration
-- [Getting Started](../getting-started/) - quick start guide
+- [ClusterBootstrap CRD](../reference/crds/clusterbootstrap.md) -- Full spec reference
+- [LoadBalancerRequest CRD](../reference/crds/loadbalancerrequest.md) -- Cloud LB provisioning
+- [MachineRequest CRD](../reference/crds/machinerequest.md) -- VM provisioning interface
+- [Provider Guides](../getting-started/) -- Per-provider setup and configuration

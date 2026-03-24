@@ -1,145 +1,11 @@
-# Multi-Tenancy Architecture
-
-This document describes Butler's multi-tenancy model for isolating teams and their resources.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Team Resource](#team-resource)
-- [Multi-Tenancy Modes](#multi-tenancy-modes)
-- [RBAC Model](#rbac-model)
-- [Resource Isolation](#resource-isolation)
-- [Platform Administrators](#platform-administrators)
-
+---
+title: Multi-Tenancy Implementation
+sidebar_position: 6
 ---
 
-## Overview
+# Multi-Tenancy Implementation
 
-Butler provides multi-tenancy through Teams, which are logical isolation boundaries that group users and resources. Teams enable organizations to:
-
-- Isolate clusters and addons by team
-- Delegate administration to team leads
-- Apply quotas and defaults per team
-- Audit access by team
-
-```mermaid
-flowchart TB
-    subgraph Platform["Butler Platform"]
-        subgraph TeamA["Team: Platform"]
-            NS1["Namespace: platform-team"]
-            TC1["TenantCluster: infra-1"]
-            TC2["TenantCluster: infra-2"]
-        end
-        
-        subgraph TeamB["Team: Backend"]
-            NS2["Namespace: backend-team"]
-            TC3["TenantCluster: api-prod"]
-            TC4["TenantCluster: api-staging"]
-        end
-        
-        subgraph TeamC["Team: Frontend"]
-            NS3["Namespace: frontend-team"]
-            TC5["TenantCluster: web-prod"]
-        end
-    end
-    
-    Admin["Platform Admin"]
-    UserA["Backend Team Lead"]
-    UserB["Frontend Developer"]
-    
-    Admin --> Platform
-    UserA --> TeamB
-    UserB --> TeamC
-```
-
-## Team Resource
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: Team
-metadata:
-  name: backend-team
-spec:
-  displayName: "Backend Engineering"
-  description: "API and services team"
-  
-  # User access
-  access:
-    users:
-      - name: alice@example.com
-        role: admin
-      - name: bob@example.com
-        role: operator
-      - name: charlie@example.com
-        role: viewer
-    groups:
-      - name: backend-engineers
-        role: operator
-        
-  # Resource defaults for new clusters
-  clusterDefaults:
-    kubernetesVersion: "v1.30.0"
-    workerCount: 3
-    workerCPU: 4
-    workerMemoryGi: 8
-
-  # Resource limits
-  resourceLimits:
-    maxClusters: 10
-    maxNodesPerCluster: 20
-    maxTotalNodes: 100
-```
-
-### Team Fields
-
-| Field | Description |
-|-------|-------------|
-| `displayName` | Human-readable team name |
-| `description` | Team description |
-| `access.users` | Individual user permissions |
-| `access.groups` | Group-based permissions (from IdP) |
-| `clusterDefaults` | Default values for new clusters |
-| `resourceLimits` | Resource limits for the team |
-
-## Multi-Tenancy Modes
-
-Butler supports three multi-tenancy modes configured in ButlerConfig:
-
-```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: ButlerConfig
-metadata:
-  name: butler
-spec:
-  multiTenancy:
-    mode: Enforced  # Enforced, Optional, or Disabled
-```
-
-### Mode Comparison
-
-| Mode | Team Required | Use Case |
-|------|---------------|----------|
-| `Enforced` | Yes | Enterprise with strict isolation |
-| `Optional` | No | Gradual adoption |
-| `Disabled` | No | Single team or simple setup |
-
-### Enforced Mode
-
-- All TenantClusters must belong to a team namespace
-- Users can only access their team's resources
-- Platform admins can access everything
-
-### Optional Mode
-
-- Teams available but not required
-- Resources without a team are globally accessible
-- Useful for migration to multi-tenancy
-
-### Disabled Mode
-
-- No team isolation
-- All authenticated users see all resources
-- Suitable for small deployments
+This document covers the Kubernetes RBAC mapping, namespace isolation, and platform administrator implementation that support Butler's multi-tenancy model. For an introduction to Teams, roles, and multi-tenancy modes, see [Concepts: Multi-Tenancy](../concepts/multi-tenancy.md).
 
 ## RBAC Model
 
@@ -152,7 +18,7 @@ flowchart TD
         Operator["operator"]
         Viewer["viewer"]
     end
-    
+
     subgraph Permissions["Permissions"]
         P1["Manage team members"]
         P2["Create/delete clusters"]
@@ -161,20 +27,20 @@ flowchart TD
         P5["View clusters"]
         P6["Get kubeconfig"]
     end
-    
+
     Admin --> P1
     Admin --> P2
     Admin --> P3
     Admin --> P4
     Admin --> P5
     Admin --> P6
-    
+
     Operator --> P2
     Operator --> P3
     Operator --> P4
     Operator --> P5
     Operator --> P6
-    
+
     Viewer --> P5
     Viewer --> P6
 ```
@@ -313,4 +179,5 @@ spec:
 
 ## See Also
 
-- [Getting Started](../getting-started/) - Create your first team
+- [Concepts: Multi-Tenancy](../concepts/multi-tenancy.md) -- Teams, roles, and multi-tenancy modes
+- [Getting Started](../getting-started/) -- Create your first team

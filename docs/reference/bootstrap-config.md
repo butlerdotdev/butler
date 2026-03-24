@@ -1,3 +1,8 @@
+---
+title: Bootstrap Config
+sidebar_position: 3
+---
+
 # Bootstrap Config Reference
 
 Field reference for `butleradm bootstrap` configuration files.

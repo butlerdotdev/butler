@@ -1,3 +1,8 @@
+---
+title: Azure
+sidebar_position: 6
+---
+
 # Azure Provider Guide
 
 > **Status: Stable.** E2E validated for single-node and HA topologies.
@@ -344,7 +349,7 @@ A Butler management cluster running on Azure with:
 - Steward for hosted tenant control planes
 - Butler controller, CRDs, and web console exposed via Azure LB
 
-To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
+To create your first tenant cluster, see [Create Your First Tenant Cluster](first-tenant-cluster.md).
 
 ---
 
@@ -473,7 +478,7 @@ providerConfig:
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
-- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
-- [AWS Provider](aws.md) - Alternative cloud provider
-- [GCP Provider](gcp.md) - Alternative cloud provider
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) -- Every config field documented
+- [AWS Provider](aws.md) -- Alternative cloud provider
+- [GCP Provider](gcp.md) -- Alternative cloud provider

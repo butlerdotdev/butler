@@ -628,4 +628,4 @@ spec:
 
 - [TenantCluster](./tenantcluster.md) -- Uses ProviderConfig for infrastructure provisioning
 - [Team](./team.md) -- Multi-tenancy unit; team-scoped ProviderConfigs restrict access
-- [Networking Architecture](../../architecture/networking.md) -- IPAM, pools, and allocation flows
+- [IPAM Internals](../../architecture/ipam.md) -- IPAM, pools, and allocation flows
