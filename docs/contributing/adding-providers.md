@@ -97,7 +97,21 @@ Add the provider type and config struct.
 | `api/v1alpha1/zz_generated.deepcopy.go` | Run `make generate` |
 | `config/crd/bases/` | Run `make manifests` |
 
-Existing provider configs serve as templates. The config struct holds provider-specific fields (API endpoint, network name, image reference, storage class). Reference credentials via `spec.credentialsRef` pointing to a Secret.
+Existing provider configs serve as templates. The config struct holds provider-specific fields (API endpoint, network name, image reference, storage class). Reference credentials via `spec.credentialsRef` pointing to a Secret:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: provider-credentials
+  namespace: butler-system
+type: Opaque
+stringData:
+  kubeconfig: |        # Harvester/Nutanix: provider kubeconfig or API credentials
+    <provider credentials>
+```
+
+The Secret key names are provider-specific. See an existing provider's `getCredentials()` function for the expected format.
 
 ### 2. butler-provider-{name} (New Repository)
 
@@ -134,7 +148,7 @@ Wire the new provider into the bootstrap CLI.
 |------|--------|
 | `internal/adm/bootstrap/cmd_{name}.go` | New `butleradm bootstrap {name}` cobra command |
 | `internal/adm/bootstrap/orchestrator/` | Add provider to orchestrator switch |
-| `manifests/controllers/` | Embed provider controller manifest for KIND deployment |
+| `manifests/controllers/` | Embed provider controller Deployment + RBAC manifest (copy from an existing provider in this directory) |
 | `configs/examples/` | Example bootstrap config file |
 
 The bootstrap command creates a KIND cluster, deploys the provider controller, and creates a ClusterBootstrap CR. Follow the pattern in an existing provider command.
@@ -164,7 +178,7 @@ func (r *MachineRequestReconciler) Reconcile(ctx context.Context, req ctrl.Reque
     if err != nil {
         return ctrl.Result{}, err
     }
-    if pc.Spec.Provider != butlerv1alpha1.ProviderType{Name} {
+    if pc.Spec.Provider != butlerv1alpha1.ProviderTypeProxmox { // replace with your provider type
         return ctrl.Result{}, nil // Not our provider
     }
 

@@ -29,7 +29,7 @@ Butler uses infrastructure providers to provision VMs for management and tenant 
 
 Providers operate in two layers:
 
-**Bootstrap layer** -- Thin provider controllers (`butler-provider-harvester`, `butler-provider-aws`, etc.) that run during management cluster creation. Each controller watches MachineRequest CRDs, calls the provider SDK to launch VMs, polls for IPs, and reports status. The same pattern applies across all six providers.
+**Bootstrap layer** -- Thin provider controllers (`butler-provider-harvester`, `butler-provider-aws`, etc.) that run during management cluster creation. Each controller watches MachineRequest CRDs, calls the provider SDK to launch VMs, polls for IPs, and reports status. The same pattern applies across all supported providers.
 
 **Steady-state layer** -- Official Cluster API infrastructure providers (CAPI) manage tenant cluster worker VM lifecycle after the management cluster is running. Butler generates the correct CAPI resources (AWSMachineTemplate, HarvesterMachineTemplate, etc.) based on the provider type in the ProviderConfig.
 

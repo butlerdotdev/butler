@@ -6,11 +6,6 @@ sidebar_position: 1
 # Butler Roadmap
 
 This document outlines planned development for Butler. Plans are subject to change based on community feedback and priorities.
-- [2026 H2](#2026-h2)
-- [Future Vision](#future-vision)
-- [Completed Milestones](#completed-milestones)
-
----
 
 ## Current Status
 

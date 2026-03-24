@@ -58,6 +58,10 @@ metadata:
   namespace: dev-team
 spec:
   kubernetesVersion: "v1.30.2"
+  providerConfigRef:
+    name: default
+  controlPlane:
+    replicas: 1
   workers:
     replicas: 2
   addons:

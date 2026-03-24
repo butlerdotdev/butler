@@ -25,7 +25,7 @@ Users install and remove these through TenantCluster spec, the Console, or direc
 
 | Category | Available Addons |
 |----------|-----------------|
-| Storage | Longhorn, LINSTOR |
+| Storage | Longhorn, OpenEBS |
 | Ingress | Traefik, nginx-ingress |
 | Certificates | cert-manager |
 | Monitoring | Prometheus, Victoria Metrics |

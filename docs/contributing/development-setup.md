@@ -6,9 +6,6 @@ sidebar_position: 2
 # Development Setup
 
 This guide covers setting up a development environment for Butler components.
-- [Debugging](#debugging)
-
----
 
 ## Prerequisites
 

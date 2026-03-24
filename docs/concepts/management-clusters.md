@@ -33,7 +33,7 @@ Both topologies use [Talos Linux](https://www.talos.dev/) as the node operating 
 
 ## One Per Environment
 
-Most organizations run one management cluster per environment (development, staging, production). A single management cluster can host hundreds of tenant clusters, bounded by etcd capacity and node resources. See [Operations > Scale](../operations/scaling.md) for sizing guidance.
+Most organizations run one management cluster per environment (development, staging, production). A single management cluster can host hundreds of tenant clusters, bounded by etcd capacity and node resources.
 
 ## See Also
 

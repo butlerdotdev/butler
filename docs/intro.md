@@ -11,7 +11,7 @@ Butler provisions and manages Kubernetes clusters across on-prem and cloud infra
 
 - **Self-service clusters** -- Create a TenantCluster CR and get a working Kubernetes cluster with CNI, load balancing, and storage in under 5 minutes.
 - **No control plane nodes** -- Steward runs tenant API servers as pods in the management cluster. No dedicated VMs for control planes.
-- **Six infrastructure providers** -- Harvester, Nutanix, AWS, GCP, Azure (stable). Proxmox (planned).
+- **Five infrastructure providers** -- Harvester, Nutanix, AWS, GCP, Azure. Proxmox is planned.
 - **Team isolation** -- Namespace-based multi-tenancy with RBAC roles, resource quotas, and SSO integration.
 - **Day-2 operations** -- Web console, CLI tools, addon management, image syncing, and GitOps support.
 
