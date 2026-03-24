@@ -295,7 +295,7 @@ A Butler management cluster running on GCP with:
 - Steward for hosted tenant control planes
 - Butler controller, CRDs, and web console exposed via GCP LB
 
-To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
+To create your first tenant cluster, see [Create Your First Tenant Cluster](first-tenant-cluster.md).
 
 ---
 
@@ -409,7 +409,7 @@ The service account needs `roles/iam.serviceAccountUser` in addition to `roles/c
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
-- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
-- [AWS Provider](aws.md) - Alternative cloud provider
-- [Azure Provider](azure.md) - Alternative cloud provider
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) -- Every config field documented
+- [AWS Provider](aws.md) -- Alternative cloud provider
+- [Azure Provider](azure.md) -- Alternative cloud provider

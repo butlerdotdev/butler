@@ -304,7 +304,7 @@ A Butler management cluster running on AWS with:
 - Steward for hosted tenant control planes
 - Butler controller, CRDs, and web console exposed via NLB
 
-To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
+To create your first tenant cluster, see [Create Your First Tenant Cluster](first-tenant-cluster.md).
 
 ---
 
@@ -386,7 +386,7 @@ aws ec2 describe-instances \
 
 ## See Also
 
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
-- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
-- [GCP Provider](gcp.md) - Alternative cloud provider
-- [Azure Provider](azure.md) - Alternative cloud provider
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) -- Every config field documented
+- [GCP Provider](gcp.md) -- Alternative cloud provider
+- [Azure Provider](azure.md) -- Alternative cloud provider

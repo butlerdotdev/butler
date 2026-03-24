@@ -315,7 +315,7 @@ A Butler management cluster running on Harvester with:
 - Steward for hosted tenant control planes
 - Butler controller, CRDs, and web console
 
-To create your first tenant cluster, go to [Create Your First Tenant Cluster](../getting-started/#create-your-first-tenant-cluster).
+To create your first tenant cluster, see [Create Your First Tenant Cluster](first-tenant-cluster.md).
 
 ---
 
@@ -428,7 +428,6 @@ Common issues:
 
 ## See Also
 
-- [Getting Started](../getting-started/) - Quick start guide
-- [Bootstrap Flow](../architecture/bootstrap-flow.md) - End-to-end bootstrap sequence
-- [Bootstrap Config Reference](../reference/bootstrap-config.md) - Every config field documented
-- [Nutanix Provider](nutanix.md) - Alternative on-prem provider
+- [Bootstrap Flow](../architecture/bootstrap-flow.md) -- End-to-end bootstrap sequence
+- [Bootstrap Config Reference](../reference/bootstrap-config.md) -- Every config field documented
+- [Nutanix Provider](nutanix.md) -- Alternative on-prem provider
