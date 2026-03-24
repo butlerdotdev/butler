@@ -89,7 +89,7 @@ kubectl get tenantcluster my-first-cluster -n dev-team -w
 
 The cluster transitions through phases: `Pending` -> `Provisioning` -> `Installing` -> `Ready`.
 
-Provisioning typically takes 3-5 minutes. If it stays in `Provisioning` for more than 10 minutes, check [Troubleshooting](../troubleshooting/provisioning.md).
+Provisioning time varies by infrastructure provider and load. If the cluster stays in `Provisioning` for more than 10 minutes, check [Troubleshooting](../troubleshooting/provisioning.md).
 
 ## 5. Get the Kubeconfig
 
