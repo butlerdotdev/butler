@@ -372,4 +372,4 @@ spec:
 - [Multi-Tenancy Architecture](../../architecture/multi-tenancy.md)
 - [TenantCluster](./tenantcluster.md) - Clusters owned by teams
 - [ProviderConfig](./providerconfig.md) - Infrastructure provider configuration
-- [IdentityProvider](../../architecture/security-model.md) - SSO and group sync
+- [Multi-Tenancy](../../concepts/multi-tenancy.md) -- SSO and group sync
