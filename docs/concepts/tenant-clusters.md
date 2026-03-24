@@ -51,8 +51,8 @@ Butler supports five worker node operating systems:
 | Talos | Machine config via talosctl | Default for new clusters. Immutable, API-managed. |
 | Rocky | kubeadm join via cloud-init | Max K8s version: v1.30.2 |
 | Flatcar | Ignition JSON | Auto-joins via bootstrap token |
-| Bottlerocket | TOML settings | Minimal, container-optimized |
-| Kairos | Cloud-config YAML | Immutable, community-driven |
+| Bottlerocket | TOML settings | Minimal, container-optimized (E2E pending) |
+| Kairos | Cloud-config YAML | Immutable, community-driven (E2E pending) |
 
 Set the OS type in `spec.workers.machineTemplate.os.type`.
 

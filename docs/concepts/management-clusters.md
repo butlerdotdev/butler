@@ -33,7 +33,7 @@ Both topologies use [Talos Linux](https://www.talos.dev/) as the node operating 
 
 ## Capacity
 
-A single management cluster can host hundreds of tenant clusters. The practical limit depends on etcd capacity, node resources, and the resource footprint of each tenant control plane.
+The practical capacity of a management cluster depends on etcd capacity, node resources, and the resource footprint of each tenant control plane. See the [scaling guide](../operations/scaling.md) for tuning guidance.
 
 ## See Also
 

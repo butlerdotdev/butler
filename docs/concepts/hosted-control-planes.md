@@ -20,13 +20,13 @@ All three components run as a single Deployment in a dedicated namespace on the 
 ## Benefits
 
 - **Faster provisioning** -- Control plane pods start in seconds. No VM boot time.
-- **Lower resource cost** -- Each tenant control plane uses ~12 mCPU and ~6 MiB at idle. Hundreds of tenants fit on modest hardware.
+- **Lower resource cost** -- Each tenant control plane uses ~12 mCPU and ~6 MiB at idle (observed on butler-beta).
 - **Centralized operations** -- One etcd cluster, one set of certificates, one backup target.
 
 ## Trade-offs
 
 - **Management cluster criticality** -- If the management cluster goes down, all tenant API servers become unavailable. Worker nodes continue running workloads, but kubectl access and new scheduling stop.
-- **Resource scaling** -- At 10+ tenants, configure [control plane resource limits](../reference/crds/butlerconfig.md) to prevent etcd starvation.
+- **Resource scaling** -- As tenant count grows, monitor etcd resource usage and configure [control plane resource limits](../reference/crds/butlerconfig.md) to avoid contention.
 - **Shared etcd** -- Tenant data is logically isolated (separate key prefixes) but shares physical storage. A misbehaving tenant with high write volume can affect others.
 
 ## Exposure Modes

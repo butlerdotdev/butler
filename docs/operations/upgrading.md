@@ -8,7 +8,7 @@ sidebar_position: 2
 ## Pre-Upgrade Checklist
 
 - [ ] Review release notes for breaking changes
-- [ ] Check the [compatibility matrix](../../releases/compatibility-matrix.md) for version requirements
+- [ ] Check release notes for component version requirements
 - [ ] Back up management cluster state (see [Backup and Restore](./backup-restore.md))
 - [ ] Notify users of the maintenance window
 - [ ] Test the upgrade in a non-production environment first
@@ -68,5 +68,4 @@ helm rollback butler-crds -n butler-system
 
 ## See Also
 
-- [Compatibility Matrix](../../releases/compatibility-matrix.md) -- Version requirements
 - [Backup and Restore](./backup-restore.md) -- Pre-upgrade backup
