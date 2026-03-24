@@ -168,17 +168,21 @@ butlerctl cluster scale <name> [flags]
 
 **Flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--workers` | Desired number of workers (required) |
-| `--wait` | Wait for scaling to complete |
-| `--timeout` | Timeout for --wait |
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--namespace` | `-n` | Namespace of the cluster |
+| `--workers` | | Desired number of workers (required) |
+| `--wait` | | Wait for scaling to complete |
+| `--timeout` | | Timeout for --wait |
 
 **Examples:**
 
 ```bash
 # Scale to 5 workers
 butlerctl cluster scale dev-cluster --workers 5
+
+# Scale in a specific namespace
+butlerctl cluster scale dev-cluster -n team-backend --workers 5
 
 # Scale and wait
 butlerctl cluster scale dev-cluster --workers 10 --wait

@@ -19,7 +19,7 @@ On-prem deployments expose the Console through a Traefik ingress. Cloud deployme
 
 ## First Login
 
-Butler creates an admin user during bootstrap using the email and password from your bootstrap config (`auth.adminEmail` and `auth.adminPassword`). Log in with those credentials.
+Butler creates an admin user during bootstrap. Set the initial password in your bootstrap config under `addons.console.auth.adminPassword` (defaults to `admin`). Log in with the admin account using that password.
 
 To add more users, create User CRDs or configure an [IdentityProvider](../reference/crds/) for SSO with Google, Microsoft Entra ID, or Okta.
 
