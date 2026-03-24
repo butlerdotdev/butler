@@ -31,9 +31,9 @@ Butler supports two management cluster topologies:
 
 Both topologies use [Talos Linux](https://www.talos.dev/) as the node operating system. Talos provides an immutable, API-managed OS with no SSH access and a minimal attack surface.
 
-## One Per Environment
+## Capacity
 
-Most organizations run one management cluster per environment (development, staging, production). A single management cluster can host hundreds of tenant clusters, bounded by etcd capacity and node resources.
+The practical capacity of a management cluster depends on etcd capacity, node resources, and the resource footprint of each tenant control plane. See the [scaling guide](../operations/scaling.md) for tuning guidance.
 
 ## See Also
 

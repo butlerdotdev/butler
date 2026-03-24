@@ -13,7 +13,7 @@ This document outlines planned development for Butler. Plans are subject to chan
 
 Butler is in beta with a comprehensive feature set:
 
-- Management cluster bootstrap across 6 providers (Harvester, Nutanix, AWS, GCP, Azure, with Proxmox planned)
+- Management cluster bootstrap across 5 providers (Harvester, Nutanix, AWS, GCP, Azure) with Proxmox planned
 - Tenant cluster provisioning with hosted control planes via Steward
 - Multi-OS worker nodes (Talos, Rocky, Flatcar, Bottlerocket, Kairos)
 - Three control plane exposure modes (LoadBalancer, Ingress, Gateway)
@@ -24,7 +24,7 @@ Butler is in beta with a comprehensive feature set:
 - Team-based multi-tenancy with resource quotas
 - SSO integration (Google, Microsoft Entra ID, Okta)
 - Butler Image Factory for OS image building and syncing
-- Configurable control plane resource limits (prevents etcd starvation at scale)
+- Configurable control plane resource limits for etcd resource management
 
 ---
 

@@ -31,7 +31,7 @@ spec:
     - etcd-2.etcd:2379
 ```
 
-At 10+ tenants, tune etcd resource limits and snapshot count. See the [etcd tuning guide](https://github.com/butlerdotdev/steward/blob/master/docs/etcd-tuning-for-multi-tenant.md) for details.
+As tenant count grows, tune etcd resource limits and snapshot count. See the [etcd tuning guide](https://github.com/butlerdotdev/steward/blob/master/docs/etcd-tuning-for-multi-tenant.md) for details.
 
 ## Scale Tenant Clusters
 
