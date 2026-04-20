@@ -63,8 +63,9 @@ Bootstrap takes 15-30 minutes and produces a Kubernetes cluster running Talos Li
 
 Once your management cluster passes the validation checklist in the provider guide:
 
-1. **[Create your first tenant cluster](./first-tenant-cluster.md)** -- Define a Team, create a TenantCluster, and get a kubeconfig.
-2. **[Explore the Console](./console.md)** -- Open the web UI to view clusters, manage addons, and access terminals.
+1. **[Complete post-bootstrap configuration](./post-bootstrap.md)** -- Expose the console with DNS + TLS, configure SSO, create your admin user, and tune `ButlerConfig`. Do this before inviting users or creating tenant clusters.
+2. **[Create your first tenant cluster](./first-tenant-cluster.md)** -- Define a Team, create a TenantCluster, and get a kubeconfig.
+3. **[Explore the Console](./console.md)** -- Open the web UI to view clusters, manage addons, and access terminals.
 
 ## Troubleshooting
 
