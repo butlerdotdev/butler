@@ -14,6 +14,27 @@ export KUBECONFIG=~/.butler/<cluster-name>-kubeconfig
 kubectl get nodes
 ```
 
+## Three Ways to Apply These Changes
+
+Each step produces the same Kubernetes state; the paths differ only in how the change lands. Pick based on how your team operates:
+
+- **kubectl**. Shortest path, no prerequisite setup. Right for first-time configuration, dev clusters, and verifying something works. This guide's primary examples use kubectl because it works for every step.
+- **Console UI**. Right for ongoing administration once the console is reachable. Requires steps 1 and 2 to be complete first. Some steps (infrastructure like ingress and TLS, or server env vars) are not surfaced in the UI because they are not platform state; those are called out per step.
+- **GitOps**. Right when the cluster is managed declaratively and all changes go through PR review. Requires Flux to be bootstrapped on the management cluster first (separate operations guide). Adds a review step to every change; drift goes down over time.
+
+Which paths each step supports:
+
+| Step | kubectl | Console UI | GitOps |
+|---|---|---|---|
+| 1. Expose the console | yes | no (infrastructure, not platform state) | yes |
+| 2. Configure `butler-server` env | yes | no (server config, not a CRD) | yes, via Helm values |
+| 3. Configure SSO | yes | yes (`Admin → Identity Providers`) | yes |
+| 4. Create admin user + invite | yes | yes (`Admin → Users → Regenerate invite`) | partial, see step 4 |
+| 5. Tune `ButlerConfig` | yes | yes (`Admin → Settings`) | yes |
+| 6. Verify | `butlerctl login` + curl | browser to `https://console.yourdomain` | not applicable |
+
+The numbered walkthrough below uses kubectl as the primary path. Callouts on each step show the Console UI and GitOps equivalents.
+
 ## 1. Expose the Console
 
 Bootstrap already installs an Ingress for the console. You change its host to one you own, add TLS, and create a DNS record pointing at the ingress controller's LoadBalancer IP.
@@ -93,6 +114,14 @@ kubectl -n butler-system get certificate butler-console-tls -w
 
 If you manage the install with Helm, set `ingress.hosts[0].host`, `ingress.tls`, and `ingress.annotations` in the chart values instead of patching the Ingress directly.
 
+:::tip GitOps path
+Commit the `ClusterIssuer` YAML and a `HelmRelease` (or direct `Ingress` override) to your Flux repo. The patch above is not idempotent in a GitOps workflow because Flux would fight a live `kubectl patch`; manage the Ingress fields through the chart values or a dedicated Ingress manifest instead.
+:::
+
+:::note No UI path
+Ingress and TLS are cluster infrastructure, not Butler platform state. The Console UI does not surface them. Do this step from kubectl or GitOps.
+:::
+
 ## 2. Configure `butler-server` for the Public URL
 
 The server emits its public URL in several places: the CLI device-flow verification link, invite emails, and OIDC callback hints. By default the server derives this URL from the incoming request, but you must still tell it to trust the ingress-supplied forwarded headers.
@@ -121,6 +150,14 @@ kubectl rollout status deployment/butler-console-server -n butler-system
 
 :::warning
 Only set `BUTLER_TRUST_PROXY_HEADERS=true` when you are confident the ingress strips client-supplied `X-Forwarded-*` headers and sets its own. Traefik, nginx-ingress, and Envoy do this by default. Verify by curling the ingress from outside the cluster with a spoofed `X-Forwarded-Host` header and checking the access log on the ingress pod.
+:::
+
+:::tip GitOps path
+These are env vars on the `butler-console-server` Deployment, which is Helm-managed. In a GitOps flow, set them in the chart values committed to your Flux repo (`server.env` or the equivalent values key for your chart version) rather than editing the live Deployment. A live `kubectl set env` will be reverted on the next Flux reconcile.
+:::
+
+:::note No UI path
+`butler-server` env vars are not platform state; the console does not expose them. Use kubectl (one-shot clusters) or GitOps (everything else).
 :::
 
 ## 3. Configure SSO
@@ -174,6 +211,14 @@ spec:
 ```
 
 `spec.oidc.redirectURL` is required and must match the callback URL registered with your IdP exactly. `spec.oidc.clientSecretRef.namespace` is optional and defaults to `butler-system`.
+
+:::tip Console UI path
+`Admin → Identity Providers → Create`. The form accepts the same fields shown above (type, issuer URL, client ID, client secret, redirect URL, scopes, claim mappings). The console writes the same `IdentityProvider` CRD. Use this path for ongoing changes once the console is reachable.
+:::
+
+:::tip GitOps path
+Commit both the `Secret` and the `IdentityProvider` YAML to your Flux repo (for example `platform/identity-providers/company-sso.yaml`). Run the `client-secret` value through SOPS or your secret-management layer before commit. Flux reconciles the CRD exactly as `kubectl apply` would.
+:::
 
 After applying, confirm the resource is accepted:
 
@@ -247,6 +292,18 @@ kubectl -n butler-system rollout restart deployment/butler-console-server
 
 The `User` CRD named `admin` remains; delete it separately if you don't want to keep it as a break-glass internal account.
 
+:::tip Console UI path
+`Admin → Users → Create`. The form produces the same `User` CRD that `butleradm user create` does. Each user row has a `Regenerate invite` action that calls `POST /api/admin/users/{name}/invite` and shows the one-time URL in the UI; no curl or cookie juggling required. For SSO users, the same page offers a toggle for `isPlatformAdmin`.
+:::
+
+:::tip GitOps path (partial)
+You can commit `User` CRDs to your Flux repo and let Flux create them, but the invite URL is minted at claim time by `butler-server` and is not part of CRD state. For password-based users the workflow stays: Flux creates the `User`, then an operator regenerates the invite URL via the UI or API and delivers it to the user. SSO users bypass this entirely; they're auto-created on first login.
+:::
+
+:::note
+The invite URL is constructed from `BUTLER_BASE_URL` captured by the server at startup. This predates the device-flow request-based URL derivation and is a known structural pattern that will migrate to per-request derivation in a future change.
+:::
+
 ## 5. Tune `ButlerConfig`
 
 `ButlerConfig` is the cluster-scoped singleton that controls platform-wide defaults. Bootstrap creates it with sensible defaults, but review the values before onboarding teams.
@@ -268,7 +325,17 @@ Fields worth reviewing:
 
 Apply changes with `kubectl apply` or `kubectl edit`; the controller reconciles in seconds.
 
+:::tip Console UI path
+`Admin → Settings`. The page has sections for general settings (multi-tenancy mode, default namespace, default provider), control plane exposure, default addon versions, default team limits, default control plane resources, image factory, audit log, notifications, and the platform SSH authorized key. The console writes back to the same `ButlerConfig` singleton; there's no drift between the two paths.
+:::
+
+:::tip GitOps path
+The `ButlerConfig` resource is cluster-scoped and named `butler`. Commit the full resource to your Flux repo (for example `platform/butlerconfig.yaml`). Flux reconciles it in place. Because this is a singleton, avoid `kubectl edit` on live clusters under Flux management; the edit will be reverted on reconcile.
+:::
+
 ## 6. Verify
+
+The verification step is a check, not an apply, so there's no GitOps variant. Exercise both the Console UI and the CLI flow:
 
 ### Web console
 
