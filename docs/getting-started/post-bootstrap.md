@@ -67,7 +67,7 @@ kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0]
 
 Create an A or CNAME record pointing `console.yourdomain` at that IP. If you plan to expose tenant-cluster API servers via shared ingress later (the `Ingress` mode of `ButlerConfig.spec.controlPlaneExposure`), also create a wildcard `*.k8s.yourdomain` pointing at the same IP.
 
-Bootstrap installs Traefik unconditionally today; the ingress controller is not configurable from the bootstrap config. Swapping to a different controller post-install is possible but out of scope for this guide.
+As of butler-cli v0.7.4, bootstrap installs Traefik unconditionally; the ingress controller is not configurable from the bootstrap config (`butler-bootstrap/internal/addons/installer.go` hardcodes the chart). Swapping to a different controller post-install is possible but out of scope for this guide.
 
 ### TLS certificate
 
@@ -94,7 +94,41 @@ For air-gapped or internal-only deployments, replace the `ClusterIssuer` body wi
 
 ### Update the Ingress host and TLS
 
-Patch the bootstrap-created Ingress to use your real hostname and reference the `ClusterIssuer`. This preserves the `/api`, `/ws`, and `/` path rules:
+The Ingress is managed by the `butler-console` Helm chart. Update the chart values and re-apply the release; the chart regenerates the Ingress with the `/api`, `/ws`, and `/` path rules intact.
+
+```yaml
+# values.yaml override
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: console.yourdomain
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: server
+        - path: /ws
+          pathType: Prefix
+          service: server
+        - path: /
+          pathType: Prefix
+          service: frontend
+  tls:
+    - hosts:
+        - console.yourdomain
+      secretName: butler-console-tls
+```
+
+Apply with `helm upgrade` (or let Flux reconcile, under GitOps). Wait for the certificate to issue:
+
+```bash
+kubectl -n butler-system get certificate butler-console-tls -w
+```
+
+:::tip Break-glass: kubectl patch
+For one-off clusters where you do not want to touch Helm values, patch the live Ingress directly:
 
 ```bash
 kubectl -n butler-system annotate ingress butler-console \
@@ -106,66 +140,71 @@ kubectl -n butler-system patch ingress butler-console --type=json -p='[
 ]'
 ```
 
-Wait for the certificate to issue before continuing:
-
-```bash
-kubectl -n butler-system get certificate butler-console-tls -w
-```
-
-If you manage the install with Helm, set `ingress.hosts[0].host`, `ingress.tls`, and `ingress.annotations` in the chart values instead of patching the Ingress directly.
-
-:::tip GitOps path
-Commit the `ClusterIssuer` YAML and a `HelmRelease` (or direct `Ingress` override) to your Flux repo. The patch above is not idempotent in a GitOps workflow because Flux would fight a live `kubectl patch`; manage the Ingress fields through the chart values or a dedicated Ingress manifest instead.
-:::
-
-:::note No UI path
-Ingress and TLS are cluster infrastructure, not Butler platform state. The Console UI does not surface them. Do this step from kubectl or GitOps.
+**This patch is ephemeral.** The next `helm upgrade` or Flux reconcile of the `butler-console` chart will revert it. Use only when you are not running Helm-managed upgrades.
 :::
 
 ## 2. Configure `butler-server` for the Public URL
 
-The server emits its public URL in several places: the CLI device-flow verification link, invite emails, and OIDC callback hints. By default the server derives this URL from the incoming request, but you must still tell it to trust the ingress-supplied forwarded headers.
+The server emits its public URL in several places: the CLI device-flow verification link and invite emails. By default the server derives this URL from the incoming request, but you must still tell it to trust the ingress-supplied forwarded headers.
 
-Set three environment variables on the `butler-console-server` Deployment. If you are managing the install with Helm, set them in the chart values; otherwise edit the Deployment directly:
+Set these in the `butler-console` Helm chart values:
 
-```bash
-kubectl set env deployment/butler-console-server -n butler-system \
-  BUTLER_BASE_URL=https://console.yourdomain \
-  BUTLER_TRUST_PROXY_HEADERS=true \
-  BUTLER_SECURE_COOKIES=true
+```yaml
+# values.yaml override
+server:
+  config:
+    baseURL: https://console.yourdomain
+  auth:
+    secureCookies: true
 ```
 
-| Variable | Value | Reason |
+| Chart value | Env var | Reason |
 |---|---|---|
-| `BUTLER_BASE_URL` | `https://console.yourdomain` | Canonical public URL. Used for invite links and as the fallback when request derivation is not possible. |
-| `BUTLER_TRUST_PROXY_HEADERS` | `true` | Tells the server to honor `X-Forwarded-Proto` and `X-Forwarded-Host` set by the ingress. Without this, `https` flows show up as `http` in emitted URLs. |
-| `BUTLER_SECURE_COOKIES` | `true` | Sets the `Secure` flag on session cookies. Required once TLS is active. |
+| `server.config.baseURL` | `BUTLER_BASE_URL` | Canonical public URL. Used for invite links and as the fallback when request derivation is not possible. |
+| `server.auth.secureCookies` | `BUTLER_SECURE_COOKIES` | Sets the `Secure` flag on session cookies. Required once TLS is active. |
 
-Restart to pick up the new values:
+Apply with `helm upgrade` (or let Flux reconcile).
+
+#### `BUTLER_TRUST_PROXY_HEADERS` chart gap
+
+The third env var you want set is `BUTLER_TRUST_PROXY_HEADERS=true`, which tells the server to honor `X-Forwarded-Proto` and `X-Forwarded-Host` from the ingress. Without it, `https` flows show up as `http` in emitted URLs. As of `butler-console` chart 0.4.1, this env var is not yet exposed through chart values; until the chart catches up, set it via `kubectl set env`:
 
 ```bash
-kubectl rollout restart deployment/butler-console-server -n butler-system
-kubectl rollout status deployment/butler-console-server -n butler-system
+kubectl -n butler-system set env deployment/butler-console-server \
+  BUTLER_TRUST_PROXY_HEADERS=true
+kubectl -n butler-system rollout status deployment/butler-console-server
 ```
+
+This patch will be reverted on the next `helm upgrade` of the chart until the values key lands. Track the chart update and re-apply on each upgrade.
 
 :::warning
 Only set `BUTLER_TRUST_PROXY_HEADERS=true` when you are confident the ingress strips client-supplied `X-Forwarded-*` headers and sets its own. Traefik, nginx-ingress, and Envoy can all be configured to do this; check your deployment's forwarded-headers settings (for example, nginx-ingress `use-forwarded-headers` defaults to `false`, which has the effect of ignoring upstream values and writing its own; Traefik requires explicit trusted-IP configuration on the entrypoint). Verify by curling the ingress from outside the cluster with a spoofed `X-Forwarded-Host` header and checking the access log or the response on the ingress pod.
 :::
 
-:::tip GitOps path
-These are env vars on the `butler-console-server` Deployment, which is Helm-managed. In a GitOps flow, set them in the chart values committed to your Flux repo (`server.env` or the equivalent values key for your chart version) rather than editing the live Deployment. A live `kubectl set env` will be reverted on the next Flux reconcile.
-:::
+:::tip Break-glass: kubectl set env
+For one-off dev clusters where you do not want to touch Helm values, all three env vars can be set directly:
 
-:::note No UI path
-`butler-server` env vars are not platform state; the console does not expose them. Use kubectl (one-shot clusters) or GitOps (everything else).
+```bash
+kubectl -n butler-system set env deployment/butler-console-server \
+  BUTLER_BASE_URL=https://console.yourdomain \
+  BUTLER_TRUST_PROXY_HEADERS=true \
+  BUTLER_SECURE_COOKIES=true
+kubectl -n butler-system rollout status deployment/butler-console-server
+```
+
+Reverted on the next `helm upgrade`.
 :::
 
 ## 3. Configure SSO
 
+:::note Platform direction for this section
+The shape of SSO configuration is mid-migration. Reconciliation of `IdentityProvider` CRDs into the running server is tracked at [butlerdotdev/butler#21](https://github.com/butlerdotdev/butler/issues/21). Today the env var path described below is the supported configuration mechanism; once the tracked decision lands, this section may flip to CRD-primary.
+:::
+
 Butler supports OIDC (Google Workspace, Microsoft Entra, Okta, Keycloak, and any standards-compliant provider). There are two related pieces you may need to configure:
 
 - **`butler-console-server` environment variables**: the server builds its OIDC provider from `BUTLER_OIDC_*` env vars once at startup. These drive the active SSO login flow.
-- **`IdentityProvider` CRD**: a cluster-scoped record used by the Teams handler to validate `identityProvider: <name>` references in group-sync rules, and displayed in the console's admin UI. It is not read by the auth code path today; creating one does not enable SSO on its own.
+- **`IdentityProvider` CRD**: a cluster-scoped record whose `metadata.name` is referenced by `Team` group-sync rules for existence checks, and is displayed in the console admin UI. Its spec fields (`issuerURL`, `clientID`, `clientSecretRef`, `redirectURL`, `scopes`, claim mappings) are not consumed by any active code path today. They exist in the schema and the admin UI for the day reconciliation lands.
 
 Enabling SSO means setting env vars. Creating the CRD is optional and only necessary if you plan to reference a named IdP from `Team.spec.access.groups` group-sync rules.
 
@@ -179,29 +218,37 @@ https://console.yourdomain/api/auth/callback
 
 Note the issuer URL, client ID, and client secret. Google Workspace additionally requires an Admin SDK service account for group fetching (groups are not in Google OIDC tokens).
 
-### Set the OIDC environment variables on `butler-console-server`
+### Set the OIDC configuration on `butler-console-server`
 
-Store the client secret in a Secret and reference it from the Deployment rather than baking it into the env literal. The example below uses a Secret + `envFrom` on the Helm-managed chart; if you are editing the live Deployment, use `kubectl set env --from=secret/...` for the client secret and plain `--env` for the others.
+Use the `butler-console` chart's `server.oidc.*` values. The chart reads OIDC credentials from a referenced Secret (`server.oidc.existingSecret`) with two keys, `client-id` and `client-secret`; the Secret keeps the credentials out of your values file.
+
+Create the Secret:
 
 ```bash
 kubectl -n butler-system create secret generic butler-oidc \
-  --from-literal=BUTLER_OIDC_CLIENT_SECRET='<from-idp>'
-
-kubectl -n butler-system set env deployment/butler-console-server \
-  BUTLER_OIDC_ENABLED=true \
-  BUTLER_OIDC_ISSUER_URL=https://accounts.google.com \
-  BUTLER_OIDC_CLIENT_ID='<from-idp>' \
-  BUTLER_OIDC_REDIRECT_URL=https://console.yourdomain/api/auth/callback \
-  BUTLER_OIDC_GROUPS_CLAIM=groups \
-  BUTLER_OIDC_EMAIL_CLAIM=email
-
-kubectl -n butler-system set env deployment/butler-console-server \
-  --from=secret/butler-oidc
-
-kubectl -n butler-system rollout restart deployment/butler-console-server
+  --from-literal=client-id='<from-idp>' \
+  --from-literal=client-secret='<from-idp>'
 ```
 
-Google Workspace only: add `GOOGLE_SERVICE_ACCOUNT_JSON` (the service account key JSON) and `GOOGLE_ADMIN_EMAIL` (an admin user for domain-wide delegation) so `butler-server` can fetch groups via the Admin SDK.
+Then set the chart values:
+
+```yaml
+# values.yaml override
+server:
+  oidc:
+    enabled: true
+    issuerURL: https://accounts.google.com
+    existingSecret: butler-oidc
+    redirectURL: https://console.yourdomain/api/auth/callback
+    groupsClaim: groups
+    emailClaim: email
+```
+
+`enabled: true` is redundant when `issuerURL` and `clientID` (or `existingSecret`) are set, because `config.go` auto-enables OIDC in that case; it is kept here for explicitness.
+
+Google Workspace only: also set `GOOGLE_SERVICE_ACCOUNT_JSON` (the service account key JSON) and `GOOGLE_ADMIN_EMAIL` (an admin user for domain-wide delegation) so `butler-server` can fetch groups via the Admin SDK. These are not yet exposed as chart values; set them via `kubectl set env --from=secret/...` against a Secret that contains both keys, and track the chart update.
+
+Apply with `helm upgrade` (or let Flux reconcile). The release rolls the `butler-console-server` Deployment and the new OIDC provider is built at startup.
 
 Verify the provider is now advertised:
 
@@ -256,15 +303,15 @@ butleradm idp get company-sso
 ```
 
 :::tip Console UI path
-`Admin → Identity Providers → Create`. The form writes the `IdentityProvider` CRD. **This does not by itself enable SSO**; the env vars above are the switch. Create the CRD here if you want a record for group-sync rules or UI visibility.
+`Admin → Identity Providers → Create` writes the `IdentityProvider` CRD. The env vars above remain the switch that activates SSO.
 :::
 
 :::tip GitOps path
-The env var configuration belongs in the `butler-console` chart values in your Flux repo (`server.env`/`server.envFrom` depending on chart version). The `IdentityProvider` CRD is a separate manifest that Flux reconciles independently. Run the client secret through SOPS or your secret-management layer before commit.
+Chart values block plus the optional `IdentityProvider` manifest, committed to your Flux repo. Run the `client-secret` through SOPS or your secret-management layer before commit.
 :::
 
-:::note Current gap
-The `IdentityProvider` CRD exists as a data model, but `butler-server` does not read it into its running OIDC provider; the provider is built from env vars once at startup. For SSO to be active, env vars are required. Provider-specific reference pages (Google Workspace Admin SDK, Microsoft Entra, Okta) are tracked separately and are not yet published.
+:::note Roadmap
+Reconciliation of `IdentityProvider` CRDs into the running server is tracked at [butlerdotdev/butler#21](https://github.com/butlerdotdev/butler/issues/21). Today the env var path is the supported configuration mechanism. Provider-specific reference pages (Google Workspace Admin SDK, Microsoft Entra, Okta) are tracked separately and are not yet published.
 :::
 
 ## 4. Create Your Admin User
@@ -272,7 +319,7 @@ The `IdentityProvider` CRD exists as a data model, but `butler-server` does not 
 Bootstrap creates two things you can authenticate as:
 
 1. A legacy admin session sourced from `BUTLER_ADMIN_USERNAME` and `BUTLER_ADMIN_PASSWORD` on the `butler-console-server` Deployment. The password is generated and stored in the `butler-console-admin` Secret.
-2. A `User` resource named `admin` with `spec.authType: internal` and `spec.isPlatformAdmin: true`. This is a real CRD record tied to the legacy credentials.
+2. A `User` resource named `admin` with `spec.authType: internal` and `spec.isPlatformAdmin: true`. The CRD mirrors the bootstrap admin's identity (email `admin@localhost`) but does not reference the legacy password Secret; password authentication as `admin` goes through the legacy env-var code path, not through the CRD.
 
 Either way, you should log in once as the bootstrap admin, create a real user for yourself, then retire the legacy credentials.
 
@@ -320,7 +367,13 @@ The response body is `{"inviteUrl":"..."}`. Send the URL to the user; it's one-t
 
 ### Retire the legacy admin
 
-Once your real account works, remove the legacy credentials from the Deployment:
+:::danger Do not run this until your replacement admin works
+Do not strip the legacy credentials until you have signed in successfully as your replacement admin (Option A or Option B above). The `admin` User CRD cannot be authenticated against after env vars are stripped; it has no referenced password Secret, and the `/api/admin/users/admin/invite` endpoint requires an existing session cookie that the stripped admin can no longer mint. If your replacement account does not work, stripping the env vars will lock you out of the cluster with no in-band recovery path.
+
+Confirm the replacement works by signing in fully (console or `butlerctl login`) before running any of the commands below.
+:::
+
+Once your replacement account is verified working, remove the legacy credentials from the Deployment:
 
 ```bash
 kubectl -n butler-system set env deployment/butler-console-server \
@@ -336,15 +389,15 @@ kubectl delete user admin
 ```
 
 :::tip Console UI path
-`Admin → Users` lists users and exposes `Add New User` (which creates the same `User` CRD that `butleradm user create` does) and `Resend Invite` per row (which calls `POST /api/admin/users/{name}/invite` and shows the one-time URL in a modal). No curl or cookie juggling required. Promoting a user to platform admin is not a UI toggle today and requires `kubectl patch` as shown above.
+`Admin → Users`. `Add New User` creates the `User` CRD and opens an invite-URL modal. `Resend Invite` on an existing row calls `POST /api/admin/users/{name}/invite`. Platform-admin promotion is not a UI toggle today; use the `kubectl patch` shown above.
 :::
 
 :::tip GitOps path (partial)
-You can commit `User` CRDs to your Flux repo and let Flux create them, but the invite URL is minted at claim time by `butler-server` and is not part of CRD state. For password-based users the workflow stays: Flux creates the `User`, then an operator regenerates the invite URL via the UI or API and delivers it to the user. SSO users bypass this entirely; they're auto-created on first login.
+Commit `User` CRDs to your Flux repo. The invite URL itself is minted at claim time by `butler-server` and is not part of CRD state; operators still regenerate it via UI or API per user.
 :::
 
 :::note
-The invite URL is constructed from `BUTLER_BASE_URL` captured by the server at startup. This predates the device-flow request-based URL derivation and is a known structural pattern that will migrate to per-request derivation in a future change.
+The invite URL is built from `BUTLER_BASE_URL` captured at server startup. Migrating it to per-request derivation is tracked as a follow-up to the butler-server v0.5.5 device-flow fix.
 :::
 
 ## 5. Tune `ButlerConfig`
@@ -369,11 +422,11 @@ Fields worth reviewing:
 Apply changes with `kubectl apply` or `kubectl edit`; the controller reconciles in seconds.
 
 :::tip Console UI path
-`Admin → Settings`. The page has sections for general settings (multi-tenancy mode, default namespace, default provider), control plane exposure, default addon versions, default team limits, default control plane resources, image factory, audit log, notifications, and the platform SSH authorized key. The console writes back to the same `ButlerConfig` singleton; there's no drift between the two paths.
+`Admin → Settings`. Sections cover general settings, control plane exposure, default addon versions, default team limits, default control plane resources, image factory, audit log, notifications, and the platform SSH authorized key. Writes back to the same singleton.
 :::
 
 :::tip GitOps path
-The `ButlerConfig` resource is cluster-scoped and named `butler`. Commit the full resource to your Flux repo (for example `platform/butlerconfig.yaml`). Flux reconciles it in place. Because this is a singleton, avoid `kubectl edit` on live clusters under Flux management; the edit will be reverted on reconcile.
+Commit the `ButlerConfig` singleton (cluster-scoped, named `butler`) to your Flux repo. Avoid `kubectl edit` on Flux-managed clusters; edits are reverted on reconcile.
 :::
 
 ## 6. Verify
