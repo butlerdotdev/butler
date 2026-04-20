@@ -16,23 +16,41 @@ kubectl get nodes
 
 ## 1. Expose the Console
 
-The bootstrap installs `butler-console-server` with a `Service` of type `ClusterIP`. You expose it through the ingress controller that bootstrap installs (Traefik by default) with a matching DNS record and TLS certificate.
+Bootstrap already installs an Ingress for the console. You change its host to one you own, add TLS, and create a DNS record pointing at the ingress controller's LoadBalancer IP.
+
+### What bootstrap installed
+
+Inspect the Ingress the bootstrap controller created:
+
+```bash
+kubectl -n butler-system get ingress butler-console -o yaml
+```
+
+Expect a resource with `ingressClassName: traefik`, a placeholder host matching your cluster name (for example `butler.butler-hvstr-test.local`), and three path rules:
+
+| Path | Backend Service | Purpose |
+|---|---|---|
+| `/api` | `butler-console-server:8080` | REST API |
+| `/ws` | `butler-console-server:8080` | Terminal and cluster-watch WebSocket |
+| `/` | `butler-console-frontend:80` | Static web UI |
+
+Do not delete this Ingress and create a new one. Do not create a second Ingress that overlaps. Edit the existing resource in place.
 
 ### DNS
 
-Create an A or CNAME record that points `console.yourdomain` at the ingress LoadBalancer IP. If you configured `loadBalancerPool` during bootstrap, the ingress controller has already received an IP from that pool. The ingress installed by default is Traefik, in the `traefik` namespace:
+Bootstrap installs Traefik as the default ingress controller in the `traefik` namespace. Its LoadBalancer IP comes from the MetalLB pool declared in `network.loadBalancerPool` (typically the first IP of the pool):
 
 ```bash
-kubectl get svc -n traefik traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
-If you chose a different ingress controller during bootstrap, substitute the namespace and Service name.
+Create an A or CNAME record pointing `console.yourdomain` at that IP. If you plan to expose tenant-cluster API servers via shared ingress later, also create a wildcard `*.k8s.yourdomain` pointing at the same IP.
 
-If you plan to expose tenant-cluster API servers on shared ingress later, also create a wildcard record `*.k8s.yourdomain` pointing at the same IP.
+If you chose a different ingress controller during bootstrap, substitute its namespace and Service name; the Ingress `ingressClassName` must match.
 
 ### TLS certificate
 
-`cert-manager` is installed during bootstrap. Create a `ClusterIssuer` and an `Ingress` that references it. The example below uses Let's Encrypt HTTP-01:
+`cert-manager` is installed during bootstrap in the `cert-manager` namespace. It does not ship with a `ClusterIssuer` by default; create one first:
 
 ```yaml
 apiVersion: cert-manager.io/v1
@@ -49,49 +67,31 @@ spec:
       - http01:
           ingress:
             ingressClassName: traefik
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: butler-console
-  namespace: butler-system
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: console.yourdomain
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: butler-console-server
-                port:
-                  number: 8080
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: butler-console-frontend
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - console.yourdomain
-      secretName: butler-console-tls
 ```
 
-The console ships as two Deployments: a static frontend (`butler-console-frontend`) and the API server (`butler-console-server`). The Ingress routes `/api` to the server and everything else to the frontend. If you prefer to manage the Ingress through Helm, the `butler-console` chart exposes equivalent `ingress.*` values.
+For air-gapped or internal-only deployments, replace the `ClusterIssuer` body with `selfSigned: {}` and skip the solver.
 
-For air-gapped or internal-only deployments, replace the `ClusterIssuer` with a self-signed issuer and skip the `http01` solver.
+### Update the Ingress host and TLS
 
-Wait for the certificate to be ready before continuing:
+Patch the bootstrap-created Ingress to use your real hostname and reference the `ClusterIssuer`. This preserves the `/api`, `/ws`, and `/` path rules:
 
 ```bash
-kubectl get certificate -n butler-system butler-console-tls -w
+kubectl -n butler-system annotate ingress butler-console \
+  cert-manager.io/cluster-issuer=letsencrypt-prod --overwrite
+
+kubectl -n butler-system patch ingress butler-console --type=json -p='[
+  {"op":"replace","path":"/spec/rules/0/host","value":"console.yourdomain"},
+  {"op":"add","path":"/spec/tls","value":[{"hosts":["console.yourdomain"],"secretName":"butler-console-tls"}]}
+]'
 ```
+
+Wait for the certificate to issue before continuing:
+
+```bash
+kubectl -n butler-system get certificate butler-console-tls -w
+```
+
+If you manage the install with Helm, set `ingress.hosts[0].host`, `ingress.tls`, and `ingress.annotations` in the chart values instead of patching the Ingress directly.
 
 ## 2. Configure `butler-server` for the Public URL
 
@@ -163,6 +163,7 @@ spec:
     clientID: <from-idp>
     clientSecretRef:
       name: company-sso-secret
+    redirectURL: https://console.yourdomain/api/auth/callback
     scopes:
       - openid
       - profile
@@ -171,6 +172,8 @@ spec:
     groupsClaim: groups
     emailClaim: email
 ```
+
+`spec.oidc.redirectURL` is required and must match the callback URL registered with your IdP exactly. `spec.oidc.clientSecretRef.namespace` is optional and defaults to `butler-system`.
 
 After applying, confirm the resource is accepted:
 
@@ -182,49 +185,67 @@ The server picks up new IdentityProviders without a restart. Provider-specific g
 
 ## 4. Create Your Admin User
 
-The bootstrap creates a legacy admin account from `BUTLER_ADMIN_USERNAME` and `BUTLER_ADMIN_PASSWORD`. Use it once to create a real `User` resource for yourself, then retire the legacy account.
+Bootstrap creates two things you can authenticate as:
+
+1. A legacy admin session sourced from `BUTLER_ADMIN_USERNAME` and `BUTLER_ADMIN_PASSWORD` on the `butler-console-server` Deployment. The password is generated and stored in the `butler-console-admin` Secret.
+2. A `User` resource named `admin` with `spec.authType: internal` and `spec.isPlatformAdmin: true`. This is a real CRD record tied to the legacy credentials.
+
+Either way, you should log in once as the bootstrap admin, create a real user for yourself, then retire the legacy credentials.
 
 ### Option A: SSO user
 
-If you configured SSO in the previous step, log in to the console at `https://console.yourdomain` using SSO. Butler auto-creates a `User` resource for you on first login (name derived from your email, `spec.authType: sso`). Then promote that user to platform admin with `kubectl`:
+If you configured SSO in the previous step, log in to the console at `https://console.yourdomain` using SSO. Butler auto-creates a `User` resource for you on first login (name derived from your email, `spec.authType: sso`). Then promote that user to platform admin:
 
 ```bash
-# Resource names use the email local part plus a hash suffix.
-# List to find yours, then patch it.
 kubectl get users
 kubectl patch user <resource-name> --type=merge \
   -p '{"spec":{"isPlatformAdmin":true}}'
 ```
 
-A dedicated `butleradm user promote` command is on the roadmap; until it lands, the `kubectl patch` path above is the supported workflow.
+A dedicated `butleradm user promote` command is roadmap-tracked; until it lands, the `kubectl patch` path above is the supported workflow.
 
 ### Option B: Internal user (password)
 
-Create the User CRD via the CLI:
+Create the User CRD:
 
 ```bash
 butleradm user create --email admin@yourdomain --admin
 ```
 
-The CLI creates the resource with `spec.isPlatformAdmin: true`. It does not itself mint the password-set invite URL. To get the invite URL, call the console's admin endpoint with the legacy admin credentials (the console UI exposes this as a "Regenerate invite" action per user):
+The CLI creates the resource with `spec.isPlatformAdmin: true` but does not mint the password-set invite URL. The easiest way to get one is through the console UI once it's reachable: sign in as the bootstrap `admin`, open the new user's page, and click **Regenerate invite**.
+
+If the console UI is not reachable yet, do it via the HTTP API. The invite endpoint requires a session cookie, so log in first, then call it:
 
 ```bash
-curl -u admin:<legacy-password> \
-  -X POST https://console.yourdomain/api/admin/users/<resource-name>/regenerate-invite
+# Grab the generated bootstrap password
+ADMIN_PASSWORD=$(kubectl -n butler-system get secret butler-console-admin \
+  -o jsonpath='{.data.admin-password}' | base64 -d)
+
+# Log in; persist the butler_session cookie
+curl -sS -c /tmp/butler-cj -X POST \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}" \
+  https://console.yourdomain/api/auth/login
+
+# Request an invite URL for the new user, reusing the cookie
+curl -sS -b /tmp/butler-cj -X POST \
+  https://console.yourdomain/api/admin/users/<resource-name>/invite
 ```
 
-The response body contains the one-time URL. Send it to the user. They open it in a browser, set a password, and sign in.
+The response body is `{"inviteUrl":"..."}`. Send the URL to the user; it's one-time, opens a password-set form, and signs them in afterward.
 
 ### Retire the legacy admin
 
 Once your real account works, remove the legacy credentials from the Deployment:
 
 ```bash
-kubectl set env deployment/butler-console-server -n butler-system \
+kubectl -n butler-system set env deployment/butler-console-server \
   BUTLER_ADMIN_USERNAME- \
   BUTLER_ADMIN_PASSWORD-
-kubectl rollout restart deployment/butler-console-server -n butler-system
+kubectl -n butler-system rollout restart deployment/butler-console-server
 ```
+
+The `User` CRD named `admin` remains; delete it separately if you don't want to keep it as a break-glass internal account.
 
 ## 5. Tune `ButlerConfig`
 
@@ -238,7 +259,7 @@ Fields worth reviewing:
 
 | Field | Default | Notes |
 |---|---|---|
-| `spec.multiTenancy.mode` | `Disabled` | Set to `Optional` to allow `TenantCluster` resources to attach to a `Team` but not require it. Set to `Enforced` to require every cluster to belong to a `Team` with quota enforcement. |
+| `spec.multiTenancy.mode` | `Optional` (bootstrap sets this; CRD-level default if the field is unset is `Disabled`) | `Disabled` means no Team scoping. `Optional` lets `TenantCluster` resources attach to a `Team` but does not require it. `Enforced` requires every cluster to belong to a `Team` with quota enforcement. |
 | `spec.defaultNamespace` | `butler-tenants` | Namespace for TenantClusters in `Disabled` or `Optional` mode when no Team is specified. |
 | `spec.defaultProviderConfigRef` | (unset) | References the default `ProviderConfig` for new tenant clusters that do not specify one. |
 | `spec.defaultTeamLimits` | (unset) | Platform-wide per-Team defaults (`maxClusters`, `maxWorkersPerCluster`). Admins can override per Team. |
@@ -298,7 +319,8 @@ With the platform reachable, authenticated, and tuned:
 | Session cookie not persisted after login | `BUTLER_SECURE_COOKIES` is `true` but the connection to the browser is HTTP. Terminate TLS before the request reaches the server. |
 | OIDC callback returns "invalid redirect URI" | The OAuth client in your IdP is registered with a different callback URL than the server advertises. Must be exactly `https://<BUTLER_BASE_URL>/api/auth/callback`. |
 | Certificate stuck in `Pending` | `kubectl describe certificate butler-console-tls -n butler-system`. Check the cert-manager logs and the `ClusterIssuer` status. |
-| `butleradm user create` succeeds but the user has no way to set a password | The CLI only creates the User resource; the invite URL comes from the server's `/api/admin/users/{name}/regenerate-invite` endpoint. See section 4. |
-| `/api/admin/users/.../regenerate-invite` returns `server misconfigured: cannot determine public URL` | `BUTLER_BASE_URL` is unset. Set it in step 2. |
+| `butleradm user create` succeeds but the user has no way to set a password | The CLI only creates the User resource; the invite URL comes from the server's `/api/admin/users/{name}/invite` endpoint (the Regenerate invite button in the console). See section 4. |
+| `/api/admin/users/.../invite` returns `unauthorized` | The endpoint requires a session cookie, not HTTP basic auth. Log in first via `POST /api/auth/login` with `{"username":...,"password":...}` and reuse the `butler_session` cookie. |
+| `/api/admin/users/.../invite` returns an invite URL pointing at localhost | `BUTLER_BASE_URL` is unset on the server. The invite URL is constructed at server startup from this value. Set it per step 2 and roll the Deployment. |
 
 See [Troubleshooting](../troubleshooting/) for broader platform issues.
