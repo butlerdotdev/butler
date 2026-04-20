@@ -20,11 +20,13 @@ The bootstrap installs `butler-console-server` with a `Service` of type `Cluster
 
 ### DNS
 
-Create an A or CNAME record that points `console.yourdomain` at the ingress LoadBalancer IP. If you configured `loadBalancerPool` during bootstrap, the ingress controller has already received an IP from that pool:
+Create an A or CNAME record that points `console.yourdomain` at the ingress LoadBalancer IP. If you configured `loadBalancerPool` during bootstrap, the ingress controller has already received an IP from that pool. The ingress installed by default is Traefik, in the `traefik` namespace:
 
 ```bash
-kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl get svc -n traefik traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
+
+If you chose a different ingress controller during bootstrap, substitute the namespace and Service name.
 
 If you plan to expose tenant-cluster API servers on shared ingress later, also create a wildcard record `*.k8s.yourdomain` pointing at the same IP.
 
@@ -137,26 +139,9 @@ Note the issuer URL, client ID, and client secret. Google Workspace additionally
 
 ### Apply the IdentityProvider
 
+The Secret lives in the same namespace as the IdentityProvider (cluster-scoped resources look up referenced Secrets in `butler-system` by default; set `spec.oidc.clientSecretRef.namespace` explicitly if you store it elsewhere). The Secret must have a key named `client-secret`.
+
 ```yaml
-apiVersion: butler.butlerlabs.dev/v1alpha1
-kind: IdentityProvider
-metadata:
-  name: company-sso
-spec:
-  displayName: "Company SSO"
-  issuerURL: https://login.microsoftonline.com/<tenant-id>/v2.0
-  clientID: <from-idp>
-  clientSecretRef:
-    name: company-sso-secret
-    key: client-secret
-  scopes:
-    - openid
-    - profile
-    - email
-    - groups
-  groupsClaim: groups
-  emailClaim: email
----
 apiVersion: v1
 kind: Secret
 metadata:
@@ -165,45 +150,74 @@ metadata:
 type: Opaque
 stringData:
   client-secret: <from-idp>
+---
+apiVersion: butler.butlerlabs.dev/v1alpha1
+kind: IdentityProvider
+metadata:
+  name: company-sso
+spec:
+  type: oidc
+  displayName: "Company SSO"
+  oidc:
+    issuerURL: https://login.microsoftonline.com/<tenant-id>/v2.0
+    clientID: <from-idp>
+    clientSecretRef:
+      name: company-sso-secret
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+    groupsClaim: groups
+    emailClaim: email
 ```
 
-Provider-specific references:
-
-- [Google Workspace (Admin SDK + OIDC)](../reference/sso-google.md)
-- [Microsoft Entra (Azure AD)](../reference/sso-entra.md)
-- [Okta](../reference/sso-okta.md)
-
-After applying, test discovery:
+After applying, confirm the resource is accepted:
 
 ```bash
-butleradm idp test company-sso
+butleradm idp get company-sso
 ```
 
-The server picks up new IdentityProviders without a restart.
+The server picks up new IdentityProviders without a restart. Provider-specific guides (Google Workspace with Admin SDK group fetching, Microsoft Entra, Okta) are tracked as separate reference pages and are not yet published.
 
 ## 4. Create Your Admin User
 
-The bootstrap creates a legacy admin account from `BUTLER_ADMIN_USERNAME` and `BUTLER_ADMIN_PASSWORD`. Use it once to create a real `User` resource for yourself, then rotate or disable the legacy account.
+The bootstrap creates a legacy admin account from `BUTLER_ADMIN_USERNAME` and `BUTLER_ADMIN_PASSWORD`. Use it once to create a real `User` resource for yourself, then retire the legacy account.
 
 ### Option A: SSO user
 
-If you configured SSO in the previous step, log in to the console at `https://console.yourdomain` using SSO. Butler auto-creates a `User` for you on first login. Then grant platform admin:
+If you configured SSO in the previous step, log in to the console at `https://console.yourdomain` using SSO. Butler auto-creates a `User` resource for you on first login (name derived from your email, `spec.authType: sso`). Then promote that user to platform admin with `kubectl`:
 
 ```bash
-butleradm user promote <your-email> --platform-admin
+# Resource names use the email local part plus a hash suffix.
+# List to find yours, then patch it.
+kubectl get users
+kubectl patch user <resource-name> --type=merge \
+  -p '{"spec":{"isPlatformAdmin":true}}'
 ```
+
+A dedicated `butleradm user promote` command is on the roadmap; until it lands, the `kubectl patch` path above is the supported workflow.
 
 ### Option B: Internal user (password)
 
+Create the User CRD via the CLI:
+
 ```bash
-butleradm user invite admin@yourdomain --platform-admin
+butleradm user create --email admin@yourdomain --admin
 ```
 
-The command prints a one-time invite URL. Open it in a browser, set a password, and sign in.
+The CLI creates the resource with `spec.isPlatformAdmin: true`. It does not itself mint the password-set invite URL. To get the invite URL, call the console's admin endpoint with the legacy admin credentials (the console UI exposes this as a "Regenerate invite" action per user):
+
+```bash
+curl -u admin:<legacy-password> \
+  -X POST https://console.yourdomain/api/admin/users/<resource-name>/regenerate-invite
+```
+
+The response body contains the one-time URL. Send it to the user. They open it in a browser, set a password, and sign in.
 
 ### Retire the legacy admin
 
-Once your real account works, remove or rotate the legacy credentials in the Deployment:
+Once your real account works, remove the legacy credentials from the Deployment:
 
 ```bash
 kubectl set env deployment/butler-console-server -n butler-system \
@@ -224,11 +238,12 @@ Fields worth reviewing:
 
 | Field | Default | Notes |
 |---|---|---|
-| `spec.multiTenancyMode` | `Optional` | Set to `Enforced` to require every `TenantCluster` to belong to a `Team` with quota enforcement. |
-| `spec.defaultProvider` | (unset) | Sets the default `ProviderConfig` for new tenant clusters that do not specify one. |
-| `spec.teamLimits` | (unset) | Platform-wide per-team caps on CPU, memory, storage, and cluster count. |
-| `spec.defaultControlPlaneResources` | bootstrap defaults | Default CPU and memory for `TenantControlPlane` apiserver, controller-manager, and scheduler pods. |
-| `spec.controlPlaneExposure` | `LoadBalancer` | How tenant API servers are reached. `Ingress` or `Gateway` modes share a single IP. |
+| `spec.multiTenancy.mode` | `Disabled` | Set to `Optional` to allow `TenantCluster` resources to attach to a `Team` but not require it. Set to `Enforced` to require every cluster to belong to a `Team` with quota enforcement. |
+| `spec.defaultNamespace` | `butler-tenants` | Namespace for TenantClusters in `Disabled` or `Optional` mode when no Team is specified. |
+| `spec.defaultProviderConfigRef` | (unset) | References the default `ProviderConfig` for new tenant clusters that do not specify one. |
+| `spec.defaultTeamLimits` | (unset) | Platform-wide per-Team defaults (`maxClusters`, `maxWorkersPerCluster`). Admins can override per Team. |
+| `spec.defaultControlPlaneResources` | bootstrap defaults | Default CPU and memory for `TenantControlPlane` apiserver, controller-manager, and scheduler pods. If unset, pods run BestEffort QoS. |
+| `spec.controlPlaneExposure` | set by bootstrap | How tenant API servers are reached. `LoadBalancer` gives each tenant its own IP; `Ingress` or `Gateway` share one IP across tenants via SNI. |
 
 Apply changes with `kubectl apply` or `kubectl edit`; the controller reconciles in seconds.
 
@@ -283,6 +298,7 @@ With the platform reachable, authenticated, and tuned:
 | Session cookie not persisted after login | `BUTLER_SECURE_COOKIES` is `true` but the connection to the browser is HTTP. Terminate TLS before the request reaches the server. |
 | OIDC callback returns "invalid redirect URI" | The OAuth client in your IdP is registered with a different callback URL than the server advertises. Must be exactly `https://<BUTLER_BASE_URL>/api/auth/callback`. |
 | Certificate stuck in `Pending` | `kubectl describe certificate butler-console-tls -n butler-system`. Check the cert-manager logs and the `ClusterIssuer` status. |
-| `butleradm user invite` fails with "server misconfigured" | `BUTLER_BASE_URL` is unset and the command runs outside a request context. Set it via step 2 and retry. |
+| `butleradm user create` succeeds but the user has no way to set a password | The CLI only creates the User resource; the invite URL comes from the server's `/api/admin/users/{name}/regenerate-invite` endpoint. See section 4. |
+| `/api/admin/users/.../regenerate-invite` returns `server misconfigured: cannot determine public URL` | `BUTLER_BASE_URL` is unset. Set it in step 2. |
 
 See [Troubleshooting](../troubleshooting/) for broader platform issues.
