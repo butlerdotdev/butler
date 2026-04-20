@@ -5,7 +5,7 @@ sidebar_position: 7
 
 # Post-Bootstrap Configuration
 
-After `butleradm bootstrap` finishes, the management cluster runs but is not yet reachable from outside the cluster network, has no TLS, and has only a legacy admin account. Work through the sections below before inviting users or creating tenant clusters.
+After `butleradm bootstrap` finishes, the management cluster runs but is not yet reachable from outside the cluster network, has no TLS, and has only the bootstrap-generated admin credentials (a legacy admin env pair on `butler-console-server` plus a backing `User` CRD named `admin`). Work through the sections below before inviting users or creating tenant clusters.
 
 Every step on this page runs against the management cluster's kubeconfig:
 
@@ -28,8 +28,8 @@ Which paths each step supports:
 |---|---|---|---|
 | 1. Expose the console | yes | no (infrastructure, not platform state) | yes |
 | 2. Configure `butler-server` env | yes | no (server config, not a CRD) | yes, via Helm values |
-| 3. Configure SSO | yes | yes (`Admin → Identity Providers`) | yes |
-| 4. Create admin user + invite | yes | yes (`Admin → Users → Regenerate invite`) | partial, see step 4 |
+| 3. Configure SSO | yes (env vars on `butler-console-server`) | partial (`Admin → Identity Providers` writes the CRD but does not set env vars; see step 3) | yes (chart values + CRD manifest) |
+| 4. Create admin user + invite | yes | yes (`Admin → Users`, then `Resend Invite` on an existing row or the modal shown on create) | partial, see step 4 |
 | 5. Tune `ButlerConfig` | yes | yes (`Admin → Settings`) | yes |
 | 6. Verify | `butlerctl login` + curl | browser to `https://console.yourdomain` | not applicable |
 
@@ -65,9 +65,9 @@ Bootstrap installs Traefik as the default ingress controller in the `traefik` na
 kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
-Create an A or CNAME record pointing `console.yourdomain` at that IP. If you plan to expose tenant-cluster API servers via shared ingress later, also create a wildcard `*.k8s.yourdomain` pointing at the same IP.
+Create an A or CNAME record pointing `console.yourdomain` at that IP. If you plan to expose tenant-cluster API servers via shared ingress later (the `Ingress` mode of `ButlerConfig.spec.controlPlaneExposure`), also create a wildcard `*.k8s.yourdomain` pointing at the same IP.
 
-If you chose a different ingress controller during bootstrap, substitute its namespace and Service name; the Ingress `ingressClassName` must match.
+Bootstrap installs Traefik unconditionally today; the ingress controller is not configurable from the bootstrap config. Swapping to a different controller post-install is possible but out of scope for this guide.
 
 ### TLS certificate
 
@@ -149,7 +149,7 @@ kubectl rollout status deployment/butler-console-server -n butler-system
 ```
 
 :::warning
-Only set `BUTLER_TRUST_PROXY_HEADERS=true` when you are confident the ingress strips client-supplied `X-Forwarded-*` headers and sets its own. Traefik, nginx-ingress, and Envoy do this by default. Verify by curling the ingress from outside the cluster with a spoofed `X-Forwarded-Host` header and checking the access log on the ingress pod.
+Only set `BUTLER_TRUST_PROXY_HEADERS=true` when you are confident the ingress strips client-supplied `X-Forwarded-*` headers and sets its own. Traefik, nginx-ingress, and Envoy can all be configured to do this; check your deployment's forwarded-headers settings (for example, nginx-ingress `use-forwarded-headers` defaults to `false`, which has the effect of ignoring upstream values and writing its own; Traefik requires explicit trusted-IP configuration on the entrypoint). Verify by curling the ingress from outside the cluster with a spoofed `X-Forwarded-Host` header and checking the access log or the response on the ingress pod.
 :::
 
 :::tip GitOps path
@@ -162,7 +162,12 @@ These are env vars on the `butler-console-server` Deployment, which is Helm-mana
 
 ## 3. Configure SSO
 
-Butler supports OIDC (Google Workspace, Microsoft Entra, Okta, Keycloak, and any standards-compliant provider). Create an `IdentityProvider` CRD and register the callback URL with your IdP.
+Butler supports OIDC (Google Workspace, Microsoft Entra, Okta, Keycloak, and any standards-compliant provider). There are two related pieces you may need to configure:
+
+- **`butler-console-server` environment variables**: the server builds its OIDC provider from `BUTLER_OIDC_*` env vars once at startup. These drive the active SSO login flow.
+- **`IdentityProvider` CRD**: a cluster-scoped record used by the Teams handler to validate `identityProvider: <name>` references in group-sync rules, and displayed in the console's admin UI. It is not read by the auth code path today; creating one does not enable SSO on its own.
+
+Enabling SSO means setting env vars. Creating the CRD is optional and only necessary if you plan to reference a named IdP from `Team.spec.access.groups` group-sync rules.
 
 ### Register the OIDC client with your IdP
 
@@ -174,9 +179,41 @@ https://console.yourdomain/api/auth/callback
 
 Note the issuer URL, client ID, and client secret. Google Workspace additionally requires an Admin SDK service account for group fetching (groups are not in Google OIDC tokens).
 
-### Apply the IdentityProvider
+### Set the OIDC environment variables on `butler-console-server`
 
-The Secret lives in the same namespace as the IdentityProvider (cluster-scoped resources look up referenced Secrets in `butler-system` by default; set `spec.oidc.clientSecretRef.namespace` explicitly if you store it elsewhere). The Secret must have a key named `client-secret`.
+Store the client secret in a Secret and reference it from the Deployment rather than baking it into the env literal. The example below uses a Secret + `envFrom` on the Helm-managed chart; if you are editing the live Deployment, use `kubectl set env --from=secret/...` for the client secret and plain `--env` for the others.
+
+```bash
+kubectl -n butler-system create secret generic butler-oidc \
+  --from-literal=BUTLER_OIDC_CLIENT_SECRET='<from-idp>'
+
+kubectl -n butler-system set env deployment/butler-console-server \
+  BUTLER_OIDC_ENABLED=true \
+  BUTLER_OIDC_ISSUER_URL=https://accounts.google.com \
+  BUTLER_OIDC_CLIENT_ID='<from-idp>' \
+  BUTLER_OIDC_REDIRECT_URL=https://console.yourdomain/api/auth/callback \
+  BUTLER_OIDC_GROUPS_CLAIM=groups \
+  BUTLER_OIDC_EMAIL_CLAIM=email
+
+kubectl -n butler-system set env deployment/butler-console-server \
+  --from=secret/butler-oidc
+
+kubectl -n butler-system rollout restart deployment/butler-console-server
+```
+
+Google Workspace only: add `GOOGLE_SERVICE_ACCOUNT_JSON` (the service account key JSON) and `GOOGLE_ADMIN_EMAIL` (an admin user for domain-wide delegation) so `butler-server` can fetch groups via the Admin SDK.
+
+Verify the provider is now advertised:
+
+```bash
+curl -sS https://console.yourdomain/api/auth/providers | jq .providers
+```
+
+Expect an entry with your configured provider (for example `[{"name":"Google","type":"oidc",...}]`). An empty array means the env vars did not land or the rollout did not complete.
+
+### Optional: create the IdentityProvider CRD
+
+Create this only if you plan to use group-sync rules that name this provider. The CRD is reconciled by the console's admin CRUD handlers; the auth code path does not consume it today.
 
 ```yaml
 apiVersion: v1
@@ -196,7 +233,7 @@ spec:
   type: oidc
   displayName: "Company SSO"
   oidc:
-    issuerURL: https://login.microsoftonline.com/<tenant-id>/v2.0
+    issuerURL: https://accounts.google.com
     clientID: <from-idp>
     clientSecretRef:
       name: company-sso-secret
@@ -210,23 +247,25 @@ spec:
     emailClaim: email
 ```
 
-`spec.oidc.redirectURL` is required and must match the callback URL registered with your IdP exactly. `spec.oidc.clientSecretRef.namespace` is optional and defaults to `butler-system`.
+`spec.oidc.redirectURL` is a required field on the CRD schema. `spec.oidc.clientSecretRef.namespace` is optional; when unset, the admin handlers resolve the Secret in `butler-system` (`config.SystemNamespace`).
 
-:::tip Console UI path
-`Admin → Identity Providers → Create`. The form accepts the same fields shown above (type, issuer URL, client ID, client secret, redirect URL, scopes, claim mappings). The console writes the same `IdentityProvider` CRD. Use this path for ongoing changes once the console is reachable.
-:::
-
-:::tip GitOps path
-Commit both the `Secret` and the `IdentityProvider` YAML to your Flux repo (for example `platform/identity-providers/company-sso.yaml`). Run the `client-secret` value through SOPS or your secret-management layer before commit. Flux reconciles the CRD exactly as `kubectl apply` would.
-:::
-
-After applying, confirm the resource is accepted:
+Confirm the resource was accepted:
 
 ```bash
 butleradm idp get company-sso
 ```
 
-The server picks up new IdentityProviders without a restart. Provider-specific guides (Google Workspace with Admin SDK group fetching, Microsoft Entra, Okta) are tracked as separate reference pages and are not yet published.
+:::tip Console UI path
+`Admin → Identity Providers → Create`. The form writes the `IdentityProvider` CRD. **This does not by itself enable SSO**; the env vars above are the switch. Create the CRD here if you want a record for group-sync rules or UI visibility.
+:::
+
+:::tip GitOps path
+The env var configuration belongs in the `butler-console` chart values in your Flux repo (`server.env`/`server.envFrom` depending on chart version). The `IdentityProvider` CRD is a separate manifest that Flux reconciles independently. Run the client secret through SOPS or your secret-management layer before commit.
+:::
+
+:::note Current gap
+The `IdentityProvider` CRD exists as a data model, but `butler-server` does not read it into its running OIDC provider; the provider is built from env vars once at startup. For SSO to be active, env vars are required. Provider-specific reference pages (Google Workspace Admin SDK, Microsoft Entra, Okta) are tracked separately and are not yet published.
+:::
 
 ## 4. Create Your Admin User
 
@@ -257,7 +296,7 @@ Create the User CRD:
 butleradm user create --email admin@yourdomain --admin
 ```
 
-The CLI creates the resource with `spec.isPlatformAdmin: true` but does not mint the password-set invite URL. The easiest way to get one is through the console UI once it's reachable: sign in as the bootstrap `admin`, open the new user's page, and click **Regenerate invite**.
+The CLI creates the resource with `spec.isPlatformAdmin: true` but does not mint the password-set invite URL. The easiest way to get one is through the console UI once it's reachable: sign in as the bootstrap `admin`, go to `Admin → Users`, and click **Resend Invite** on the row for the new user. (When creating a user through the console, the invite URL is shown in a modal immediately after creation; `Resend Invite` is how you get a fresh URL for an already-created user.)
 
 If the console UI is not reachable yet, do it via the HTTP API. The invite endpoint requires a session cookie, so log in first, then call it:
 
@@ -290,10 +329,14 @@ kubectl -n butler-system set env deployment/butler-console-server \
 kubectl -n butler-system rollout restart deployment/butler-console-server
 ```
 
-The `User` CRD named `admin` remains; delete it separately if you don't want to keep it as a break-glass internal account.
+The `User` CRD named `admin` remains after the env vars are removed, but it has no password and no referenced password Secret; nobody can authenticate as it until an invite is regenerated for it and a password is set. Delete it if you do not want it sitting dormant:
+
+```bash
+kubectl delete user admin
+```
 
 :::tip Console UI path
-`Admin → Users → Create`. The form produces the same `User` CRD that `butleradm user create` does. Each user row has a `Regenerate invite` action that calls `POST /api/admin/users/{name}/invite` and shows the one-time URL in the UI; no curl or cookie juggling required. For SSO users, the same page offers a toggle for `isPlatformAdmin`.
+`Admin → Users` lists users and exposes `Add New User` (which creates the same `User` CRD that `butleradm user create` does) and `Resend Invite` per row (which calls `POST /api/admin/users/{name}/invite` and shows the one-time URL in a modal). No curl or cookie juggling required. Promoting a user to platform admin is not a UI toggle today and requires `kubectl patch` as shown above.
 :::
 
 :::tip GitOps path (partial)
@@ -384,9 +427,10 @@ With the platform reachable, authenticated, and tuned:
 | CLI verification URL shows `localhost:8080` | `BUTLER_BASE_URL` is unset or pods have not restarted since you set it. |
 | CLI verification URL uses `http://` despite a TLS ingress | `BUTLER_TRUST_PROXY_HEADERS` is not `true`, or the ingress is not forwarding `X-Forwarded-Proto`. |
 | Session cookie not persisted after login | `BUTLER_SECURE_COOKIES` is `true` but the connection to the browser is HTTP. Terminate TLS before the request reaches the server. |
-| OIDC callback returns "invalid redirect URI" | The OAuth client in your IdP is registered with a different callback URL than the server advertises. Must be exactly `https://<BUTLER_BASE_URL>/api/auth/callback`. |
+| OIDC callback returns "invalid redirect URI" | The OAuth client in your IdP is registered with a different callback URL than `BUTLER_OIDC_REDIRECT_URL`. Match them exactly; the path is `/api/auth/callback` on your public hostname. |
+| Configured an `IdentityProvider` CRD but SSO login button still missing | The CRD does not drive auth today. Set the `BUTLER_OIDC_*` env vars on `butler-console-server` and roll the Deployment (step 3). |
 | Certificate stuck in `Pending` | `kubectl describe certificate butler-console-tls -n butler-system`. Check the cert-manager logs and the `ClusterIssuer` status. |
-| `butleradm user create` succeeds but the user has no way to set a password | The CLI only creates the User resource; the invite URL comes from the server's `/api/admin/users/{name}/invite` endpoint (the Regenerate invite button in the console). See section 4. |
+| `butleradm user create` succeeds but the user has no way to set a password | The CLI only creates the User resource; the invite URL comes from the server's `/api/admin/users/{name}/invite` endpoint (the `Resend Invite` button in the console, or the modal shown on create). See section 4. |
 | `/api/admin/users/.../invite` returns `unauthorized` | The endpoint requires a session cookie, not HTTP basic auth. Log in first via `POST /api/auth/login` with `{"username":...,"password":...}` and reuse the `butler_session` cookie. |
 | `/api/admin/users/.../invite` returns an invite URL pointing at localhost | `BUTLER_BASE_URL` is unset on the server. The invite URL is constructed at server startup from this value. Set it per step 2 and roll the Deployment. |
 
