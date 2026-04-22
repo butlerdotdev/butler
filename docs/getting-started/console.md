@@ -45,6 +45,21 @@ The Images page lists OS images available from Butler Image Factory. Create Imag
 
 Platform administrators can create teams, assign users with roles (admin, operator, viewer), and set resource quotas.
 
+### Manage Environments
+
+Teams that opt into [environments](../concepts/environments.md) get a dedicated **Environments** item in the team sidebar under Workloads. Team admins and platform admins can create, edit, and delete envs from there; the rest of the team sees the read-only list.
+
+The console surfaces envs in several places:
+
+- **Environment picker** in the header, next to the team picker. Switching scopes the active session to one env; the cluster list, create form, and mutation handlers all pick up the selection. "All environments" is the default and clears the scope.
+- **Cluster list** groups by env when the team has any defined and the header picker is on "All environments". Each section shows its cap, utilization, and a per-member-cap badge when set. Sections are collapsible and the state persists per team.
+- **Create cluster form** shows an env selector when the team has envs. Env `clusterDefaults` pre-fill worker/version fields; overridden fields carry a "from env default" hint. Per-member cap visibility renders "You own N of M clusters in env X" near the picker, shown red when at cap, with submit disabled.
+- **Change environment** action on each cluster detail page moves a single cluster between envs. Sets the migration-operation annotation automatically.
+- **Migrate clusters...** action on the Environments page bulk-migrates unlabeled or cross-env clusters with per-cluster progress, retry-on-failure, and relabel warnings when the source filter crosses envs.
+- **Admin cluster list** at `/admin/clusters` adds grouping chips (Environment, Team, or both for nested team → env layout).
+
+Webhook denials from env mutations render inline on whichever form triggered them (per-member cap breaches, team-admin-only edits, env-label immutability without the migration annotation) rather than as generic toasts, so operators see the rejection text next to the field that failed.
+
 ## Next Steps
 
 - **[Concepts](../concepts/)** -- Understand Butler's architecture and multi-tenancy model.

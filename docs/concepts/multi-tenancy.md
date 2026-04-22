@@ -65,8 +65,13 @@ Teams support resource limits to prevent any single team from consuming the enti
 
 Butler tracks current usage against these limits in the Team's status.
 
+## Environments
+
+Teams can optionally subdivide into named [environments](./environments.md) (dev, prod, per-user sandboxes). Each environment carries its own quotas, access overrides, and default cluster shape, sharing the team's overall ceiling.
+
 ## See Also
 
+- [Environments](./environments.md) -- Subdivisions within a team with per-env quotas and access
 - [Architecture > Multi-Tenancy Implementation](../architecture/multi-tenancy.md) -- Kubernetes RBAC mapping and namespace creation flow
 - [Team CRD Reference](../reference/crds/team.md) -- Full Team specification
 - [ButlerConfig Reference](../reference/crds/butlerconfig.md) -- Multi-tenancy mode configuration

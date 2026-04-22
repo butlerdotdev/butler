@@ -473,6 +473,8 @@ With the platform reachable, authenticated, and tuned:
 2. [Tour the console](./console.md)
 3. [Day-2 operations](../operations/): upgrades, monitoring, backup, scaling
 
+Optional: if the team plans to operate at multiple risk tiers (dev, prod) or wants per-user sandbox caps, define [environments](../concepts/environments.md) on the team before users start creating clusters. Environments are optional: a team with no environments works fine. Adding them later is supported but existing clusters stay outside env accounting until migrated.
+
 ## Troubleshooting
 
 | Symptom | Check |
