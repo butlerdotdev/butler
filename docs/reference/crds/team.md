@@ -38,6 +38,7 @@ The Team controller reconciles the following:
 | `resourceLimits` | TeamResourceLimits | No | — | Limits on team resource consumption |
 | `providerConfigRef` | LocalObjectReference | No | — | Default provider for team clusters |
 | `clusterDefaults` | ClusterDefaults | No | — | Default values for new TenantClusters |
+| `environments` | []EnvironmentSpec | No | — | Named subdivisions within the team; see [Environments](../../concepts/environments.md) |
 
 ### TeamAccess
 
@@ -118,6 +119,31 @@ Default values applied to new TenantClusters created in this team when the corre
 | `workerMemoryGi` | int32 | Default memory per worker (GiB) |
 | `workerDiskGi` | int32 | Default disk size per worker (GiB) |
 | `defaultAddons` | []string | Addons installed by default on new clusters |
+
+### EnvironmentSpec
+
+A named subdivision within the team. TenantClusters opt into an environment by carrying the `butler.butlerlabs.dev/environment` label. See the [Environments concept page](../../concepts/environments.md) for semantics.
+
+| Field | Type | Required | Validation | Description |
+|-------|------|----------|------------|-------------|
+| `name` | string | Yes | K8s label-value pattern, 1-63 chars | Identifier; immutable after creation |
+| `description` | string | No | — | Free-text blurb; not interpreted by the controller |
+| `limits` | EnvironmentLimits | No | — | Per-env quota caps |
+| `access` | TeamAccess | No | — | Additive-only role overrides within this env |
+| `clusterDefaults` | ClusterDefaults | No | — | Defaults applied when TCs are created in this env without the field set; overrides team-level `clusterDefaults` on conflicts |
+
+`environments` is listed as a map in the CRD schema with `listMapKey: name`; duplicate names are rejected at the apiserver.
+
+### EnvironmentLimits
+
+All fields optional. Unset means no env-level cap; team-level `resourceLimits.maxClusters` still applies.
+
+| Field | Type | Validation | Description |
+|-------|------|------------|-------------|
+| `maxClusters` | *int32 | min: 0 | Maximum TenantClusters in this env. 0 means no cap |
+| `maxClustersPerMember` | *int32 | min: 0 | Per-individual cap; rejects a create when the requesting user already owns this many clusters in the env. 0 means no cap |
+
+The per-member cap keys on the `butler.butlerlabs.dev/owner` annotation (promoted by the controller from `butler.butlerlabs.dev/creator-email` that the server or CLI stamps at create time). Direct `kubectl apply` creates without the creator-email annotation are rejected when the target env has a per-member cap set.
 
 ### ProviderConfigRef
 
