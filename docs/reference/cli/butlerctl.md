@@ -40,6 +40,7 @@ butlerctl cluster list [flags]
 |------|-------|-------------|
 | `--all-namespaces` | `-A` | List clusters in all namespaces |
 | `--namespace` | `-n` | List clusters in specific namespace |
+| `--environment` | | Filter to clusters in the given [environment](../../concepts/environments.md). Shows an ENV column when any cluster in the result carries the env label |
 
 **Examples:**
 
@@ -91,6 +92,7 @@ butlerctl cluster create <name> [flags]
 | `--dry-run` | | Preview TenantCluster YAML without creating | `false` |
 | `--wait` | | Wait for cluster to reach Ready | `false` |
 | `--timeout` | | Timeout for --wait | `15m` |
+| `--environment` | | Place the cluster in the given [team environment](../../concepts/environments.md). Required when the team has any environments defined. Stamps `butler.butlerlabs.dev/environment: <env>` label and applies env `clusterDefaults` to unset fields. | |
 
 Control plane resource flags (all optional, override ButlerConfig defaults):
 

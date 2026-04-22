@@ -359,6 +359,147 @@ butleradm provider add <name> --type <type> [flags]
 
 ---
 
+## butleradm env
+
+Manage team [environments](../../concepts/environments.md). An environment is a named slot within a Team that optionally caps cluster count, per-member cluster count, and default cluster shape.
+
+All env subcommands require `--team <name>`.
+
+### butleradm env list
+
+List environments on a team with live cluster counts.
+
+```bash
+butleradm env list --team <team> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--team` | | Team name (required) |
+| `--output` | `-o` | Output format: `table` (default), `json`, `yaml` |
+
+### butleradm env create
+
+Append an environment to a team.
+
+```bash
+butleradm env create <name> --team <team> [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--team` | Team name (required) |
+| `--description` | Free-text description shown in the env list and console |
+| `--max-clusters` | Maximum TenantClusters in this env (0 = no cap) |
+| `--max-clusters-per-member` | Per-user cap inside this env (0 = no cap) |
+| `--cluster-default` | Repeatable `key=value` default. Keys: `kubernetesVersion`, `workerCount`, `workerCPU`, `workerMemoryGi`, `workerDiskGi` |
+| `--access-user` | Repeatable `email:role`. Role must be `admin`, `operator`, or `viewer` |
+| `--access-group` | Repeatable `name:role` or `name:role:identityProvider` |
+
+**Examples:**
+
+```bash
+# Minimal: name only
+butleradm env create staging --team payments
+
+# With caps
+butleradm env create sandbox --team payments --max-clusters-per-member 1
+butleradm env create prod --team payments --max-clusters 10
+
+# Full shape
+butleradm env create prod --team payments \
+  --description "production workloads" \
+  --cluster-default kubernetesVersion=v1.31.0 \
+  --cluster-default workerCount=3 \
+  --access-user alice@example.com:admin \
+  --access-group sre:admin
+```
+
+### butleradm env update
+
+Patch an environment in place. Unset flags leave fields unchanged; the env name is immutable.
+
+```bash
+butleradm env update <name> --team <team> [flags]
+```
+
+**Flags:** same as `env create`, plus:
+
+| Flag | Description |
+|------|-------------|
+| `--clear-limits` | Remove the entire limits block |
+| `--clear-cluster-defaults` | Remove the entire clusterDefaults block |
+| `--clear-access` | Remove the entire access block (users and groups) |
+
+Partial clears use the same flags as set, with an empty value:
+
+```bash
+# Clear one cluster-default key, keep others
+butleradm env update prod --team payments --cluster-default workerCount=
+
+# Remove one access-user entry, keep others
+butleradm env update prod --team payments --access-user alice@example.com:
+
+# Remove one access-group entry (by name + idp match)
+butleradm env update prod --team payments --access-group developers::okta
+```
+
+### butleradm env delete
+
+Remove an environment from a team.
+
+```bash
+butleradm env delete <name> --team <team> [flags]
+```
+
+**Flags:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--team` | | Team name (required) |
+| `--force` / `--yes` | `-y` | Skip confirmation prompt |
+
+Clusters that carried the deleted env's label remain but are no longer accounted under any env's cap. They continue to count against the team's total `maxClusters`.
+
+### butleradm env migrate
+
+Bulk-label existing TenantClusters into a target env. Use this after adding envs to a team that already has clusters; the pre-existing clusters stay unlabeled until migrated.
+
+```bash
+butleradm env migrate --team <team> --environment <env> [NAMES...] [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--team` | Team name (required) |
+| `--environment` | Target env name (required) |
+| `--all` | Migrate every unlabeled cluster in the team namespace |
+| `--relabel` | Also rewrite clusters already carrying a different env label (requires extra confirmation) |
+| `--force` / `-y` | Skip the confirmation prompt |
+
+**Examples:**
+
+```bash
+# Migrate every unlabeled cluster into prod
+butleradm env migrate --team payments --environment prod --all
+
+# Migrate specific clusters
+butleradm env migrate --team payments --environment prod web-1 web-2
+
+# Relabel clusters already in dev into staging
+butleradm env migrate --team payments --environment staging --relabel --all
+```
+
+The migration writes both the env label and the `butler.butlerlabs.dev/migration-operation: "true"` annotation the admission webhook requires for env-label mutations.
+
+---
+
 ## butleradm version
 
 Print version information.
