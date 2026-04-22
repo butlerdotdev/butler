@@ -111,14 +111,14 @@ All fields are optional. When a limit is not set, no enforcement is applied for 
 
 Default values applied to new TenantClusters created in this team when the corresponding field is not explicitly set.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `kubernetesVersion` | string | Default Kubernetes version |
-| `workerCount` | int32 | Default number of worker nodes |
-| `workerCPU` | resource.Quantity | Default CPU per worker |
-| `workerMemoryGi` | int32 | Default memory per worker (GiB) |
-| `workerDiskGi` | int32 | Default disk size per worker (GiB) |
-| `defaultAddons` | []string | Addons installed by default on new clusters |
+| Field | Type | Validation | Description |
+|-------|------|------------|-------------|
+| `kubernetesVersion` | string | | Default Kubernetes version |
+| `workerCount` | *int32 | min: 0 | Default number of worker nodes |
+| `workerCPU` | *int32 | min: 1 | Default CPU cores per worker |
+| `workerMemoryGi` | *int32 | min: 1 | Default memory per worker (GiB) |
+| `workerDiskGi` | *int32 | min: 10 | Default disk size per worker (GiB) |
+| `defaultAddons` | []string | | Addons installed by default on new clusters |
 
 ### EnvironmentSpec
 

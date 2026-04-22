@@ -5,7 +5,7 @@ sidebar_position: 7
 
 # Environments
 
-Environments are logical subdivisions within a [Team](./multi-tenancy.md). Use them to separate dev from prod, carve out per-user sandboxes, or group shared utility clusters — without creating a new Team for each slice.
+Environments are logical subdivisions within a [Team](./multi-tenancy.md). Use them to separate dev from prod, carve out per-user sandboxes, or group shared utility clusters without creating a new Team for each slice.
 
 An environment lives in `Team.spec.environments[]` as a named slot with optional quotas, access overrides, and default cluster shape. TenantClusters opt into an environment by carrying the label `butler.butlerlabs.dev/environment: <env-name>`. The label is stamped automatically by the console and CLI when an environment is selected at cluster-create time.
 
@@ -28,7 +28,7 @@ Each environment in `spec.environments[]` has four configurable fields. Only `na
 
 ### name
 
-Operator-chosen identifier. Used as the value of the `butler.butlerlabs.dev/environment` label on TenantClusters. Must match Kubernetes label-value syntax (alphanumeric plus `-`, `_`, `.`; alphanumeric anchors; up to 63 characters). Immutable after creation — rename by delete-and-recreate.
+Operator-chosen identifier. Used as the value of the `butler.butlerlabs.dev/environment` label on TenantClusters. Must match Kubernetes label-value syntax (alphanumeric plus `-`, `_`, `.`; alphanumeric anchors; up to 63 characters). Immutable after creation; rename by delete-and-recreate.
 
 ### description
 
@@ -38,14 +38,14 @@ Free-text blurb shown in the console env list and the environment context in the
 
 Per-env quota caps on top of the team's total ceiling:
 
-- `maxClusters` — maximum TenantClusters allowed in this environment.
-- `maxClustersPerMember` — per-individual cap. Prevents any single user from consuming an environment's cluster count on their own.
+- `maxClusters`: maximum TenantClusters allowed in this environment.
+- `maxClustersPerMember`: per-individual cap. Prevents any single user from consuming an environment's cluster count on their own.
 
 Both are optional. An unset cap means no environment-level limit; the team-wide `resourceLimits.maxClusters` still applies.
 
 ### access
 
-Additive-only RBAC overrides. Lists users or groups with an env-specific role that overrides their team role **within this environment only**. The role can only be equal to or higher than the team role — env access cannot reduce a team admin to operator.
+Additive-only RBAC overrides. Lists users or groups with an env-specific role that overrides their team role **within this environment only**. The role can only be equal to or higher than the team role; env access cannot reduce a team admin to operator.
 
 ### clusterDefaults
 
@@ -58,6 +58,12 @@ Default values applied when a TenantCluster is created in this env without speci
 "Member" here means any authenticated identity that creates clusters. Platform admins are subject to the cap too if they create on behalf of themselves; the cap does not exempt any role.
 
 The cap only enforces when the creator email is known. Console and CLI creates stamp the annotation automatically (the console via server impersonation, the CLI via direct identity forwarding). TenantClusters created by raw `kubectl apply` must carry the annotation explicitly or the admission webhook rejects them when the target env has a per-member cap set.
+
+The rejection message on a breach reads:
+
+```
+user "carol@example.com" already owns 2 cluster(s) in environment "dev"; env limits to 2 per member
+```
 
 ## Additive-only access inheritance
 
@@ -79,7 +85,7 @@ Effective roles for alice:
 | dev (no env override) | operator |
 | prod (env elevates her) | admin |
 
-Bob stays admin everywhere because team roles apply wherever env access does not elevate further. Reducing Bob to operator in an env has no effect — the session layer takes the higher of the two roles.
+Bob stays admin everywhere because team roles apply wherever env access does not elevate further. Reducing Bob to operator in an env has no effect; the session layer takes the higher of the two roles.
 
 Env access entries must reference users or groups who already appear in `Team.spec.access`. Introducing a new identity through an env access block is rejected by the admission webhook; use the team access list to grant initial team membership, then elevate through an env if needed.
 
@@ -103,13 +109,33 @@ Environments have a split edit model:
 | `Team.spec.environments[].limits` | Team admins of the team, and platform admins |
 | All other env fields | Team admins of the team, and platform admins |
 
-The admission webhook enforces this. Team admins cannot raise their own team ceiling — only a platform admin can edit `resourceLimits` — but they can adjust per-env caps within that ceiling on their own.
+The admission webhook enforces this. Team admins cannot raise their own team ceiling (only a platform admin can edit `resourceLimits`), but they can adjust per-env caps within that ceiling on their own.
+
+When a team admin or platform admin attempts a resourceLimits mutation they are not authorized for, the webhook replies verbatim with:
+
+```
+spec.resourceLimits may only be modified by platform admins; user "alice@example.com" is not a platform admin
+```
+
+An operator on a team who attempts to edit env limits receives:
+
+```
+spec.environments[].limits may only be modified by team admins of "payments" or platform admins; user "bob@example.com" is neither
+```
+
+butler-server surfaces the message verbatim as the `message` field of a structured 403 (`reason: "webhook-denied"`); the console renders it inline on the form that triggered the denial.
 
 ## Migration for existing clusters
 
 Clusters that existed before the team had any environments defined remain without the env label. They continue to work and count against the team's total `maxClusters`, but are not accounted under any env's cap.
 
-Moving an existing cluster into an environment uses the `butler.butlerlabs.dev/migration-operation` annotation. The console's **Change Environment** action (per-cluster) and **Migrate clusters...** action (bulk) both set this annotation automatically. The CLI's `butleradm env migrate` command does the same. Direct `kubectl` edits to the env label are rejected without the annotation — the annotation is what tells the webhook this is an intentional migration rather than a stray label change.
+Moving an existing cluster into an environment uses the `butler.butlerlabs.dev/migration-operation` annotation. The console's **Change Environment** action (per-cluster) and **Migrate clusters...** action (bulk) both set this annotation automatically. The CLI's `butleradm env migrate` command does the same. Direct `kubectl` edits to the env label are rejected without the annotation; the annotation is what tells the webhook this is an intentional migration rather than a stray label change.
+
+The webhook message on a missing annotation is:
+
+```
+env label changes require the "butler.butlerlabs.dev/migration-operation" annotation set to "true"; use `butleradm env migrate`
+```
 
 ## Worked example
 
@@ -200,7 +226,7 @@ Scenarios:
 
 ## See also
 
-- [Team CRD Reference](../reference/crds/team.md) — full schema including `EnvironmentSpec`, `EnvironmentLimits`, and `EnvironmentAccess` shapes.
-- [butleradm env](../reference/cli/butleradm.md#butleradm-env) — CLI for env lifecycle.
-- [butlerctl cluster --environment](../reference/cli/butlerctl.md#butlerctl-cluster-create) — create a cluster in a specific env.
-- [Multi-Tenancy](./multi-tenancy.md) — the team-level tenancy boundary envs subdivide.
+- [Team CRD Reference](../reference/crds/team.md): full schema including `EnvironmentSpec` and `EnvironmentLimits`. Env access reuses the team-level `TeamAccess` type.
+- [butleradm env](../reference/cli/butleradm.md#butleradm-env): CLI for env lifecycle.
+- [butlerctl cluster --environment](../reference/cli/butlerctl.md#butlerctl-cluster-create): create a cluster in a specific env.
+- [Multi-Tenancy](./multi-tenancy.md): the team-level tenancy boundary envs subdivide.
