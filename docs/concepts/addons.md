@@ -35,7 +35,7 @@ Users install and remove these through TenantCluster spec, the Console, or direc
 
 Three CRDs drive the addon system:
 
-**AddonDefinition** -- Cluster-scoped catalog entries. Each definition specifies a Helm chart repository, chart name, available versions, default values, and whether the addon is a platform requirement. Platform admins manage the catalog.
+**AddonDefinition** -- Cluster-scoped catalog entries. Each definition specifies a Helm chart repository, chart name, available versions, default values, and whether the addon is a platform requirement. Definitions can also carry a `tier` (infrastructure or apps) that controls GitOps export ordering, and an `iconData` field with a base64-encoded SVG logo for display in the Console. Platform admins manage the catalog.
 
 **TenantAddon** -- Namespaced resources that represent an addon installed on a specific tenant cluster. Butler creates TenantAddons from `TenantCluster.spec.addons` or users can create them directly. The butler-controller installs the Helm chart on the tenant cluster and tracks its health.
 
@@ -67,4 +67,6 @@ Each addon's `version` field is required. Butler does not auto-select versions.
 ## See Also
 
 - [Architecture > Addon System](../architecture/addon-system.md) -- Installation sequence, dependency resolution, and controller flow
+- [AddonDefinition CRD Reference](../reference/crds/addondefinition.md) -- Full field specification
+- [Addon Catalog Operations](../operations/addon-catalog.md) -- Using the Console to browse and manage addons
 - [TenantCluster Reference](../reference/crds/tenantcluster.md) -- Addon spec fields

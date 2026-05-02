@@ -48,7 +48,7 @@ Butler extends the Kubernetes API with Custom Resource Definitions (CRDs) under 
 
 | CRD | Scope | Short Name | Description |
 |-----|-------|------------|-------------|
-| AddonDefinition | Cluster | `ad` | Addon catalog entry |
+| [AddonDefinition](./addondefinition.md) | Cluster | `ad` | Addon catalog entry |
 | TenantAddon | Namespaced | `ta` | Addon on tenant cluster |
 | ManagementAddon | Cluster | `ma` | Addon on management cluster |
 
