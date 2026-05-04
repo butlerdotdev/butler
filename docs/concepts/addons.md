@@ -60,9 +60,12 @@ spec:
     certManager:
       enabled: true
       version: "1.16.0"
+    ingress:
+      enabled: true   # default; set to false to skip Traefik (saves 1 LB IP)
+      version: "34.3.0"
 ```
 
-Each addon's `version` field is required. Butler does not auto-select versions.
+Each addon's `version` field is required. Butler does not auto-select versions. The ingress controller (Traefik) is enabled by default and can be disabled for workload patterns that don't need HTTP ingress (CI runners, batch processing, dedicated ingest clusters).
 
 ## See Also
 
