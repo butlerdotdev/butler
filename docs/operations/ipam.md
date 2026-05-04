@@ -65,7 +65,9 @@ At this utilization, all three capacity conditions are `False` (below every thre
 | 14      | 28        | 87%         | `CapacityWarning`, `CapacityCritical` |
 | 16      | 32        | 100%        | All three           |
 
-This assumes no growth allocations. With elastic IPAM, tenants that run both a platform LB (Traefik) and a workload LB Service use both initial IPs. Tenants that run only Traefik leave 1 IP as idle headroom. In practice, 5 of 8 tenants in this deployment run at 100% utilization (both IPs in use), while 3 run at 50% (Traefik only). The actual pool usage is 13 IPs in use by Services plus 3 IPs as idle headroom.
+This assumes no growth allocations and all tenants running the default addon set (including Traefik). Tenants with ingress disabled (`spec.addons.ingress.enabled: false`) consume 0 LB IPs at rest, since Traefik is the only platform LB Service. Workload patterns that don't need HTTP ingress (CI runners, batch processing, dedicated ingest clusters) can disable Traefik during cluster creation to save 1 LB IP per tenant.
+
+With elastic IPAM, tenants that run both a platform LB (Traefik) and a workload LB Service use both initial IPs. Tenants that run only Traefik leave 1 IP as idle headroom. In practice, 5 of 8 tenants in this deployment run at 100% utilization (both IPs in use), while 3 run at 50% (Traefik only). The actual pool usage is 13 IPs in use by Services plus 3 IPs as idle headroom.
 
 Growth allocations consume additional IPs beyond the initial allocation. If a tenant with 2 initial IPs creates a third LB Service, demand-driven growth allocates 1 more IP from the pool, moving the pool from 16 to 17 allocated. Growth allocations are released when the Service is deleted and the grace period expires (10 minutes).
 
@@ -90,7 +92,7 @@ When a new TenantCluster is created with elastic IPAM, operators can expect:
 
 ### What a fresh tenant looks like
 
-On bootstrap, a fresh tenant cluster running the default addon set (Cilium, MetalLB, cert-manager, Longhorn, Traefik) has one LB Service: Traefik. This consumes 1 of the initially allocated IPs.
+On bootstrap, a fresh tenant cluster running the default addon set (Cilium, MetalLB, cert-manager, Longhorn, Traefik) has one LB Service: Traefik. This consumes 1 of the initially allocated IPs. Clusters created with ingress disabled have no platform LB Services and all initially allocated IPs sit as available headroom for workload LB Services.
 
 If Traefik failed to install during initial addon setup, the cluster reaches Ready phase but the `AddonsReady` condition is `False`. The controller retries the install during steady-state reconciliation. Until Traefik is installed, no platform LB Service exists on the tenant, and the allocated IPs sit unused. See [Troubleshooting: Addons](../troubleshooting/addons.md#platform-addon-install-failed) for diagnosis.
 
