@@ -59,10 +59,14 @@ Allocations follow a lifecycle: `Pending` -> `Allocated` -> `Released`. Released
 
 Butler supports two load balancer allocation modes:
 
-- **Static** -- Allocate a fixed pool of IPs at cluster creation.
-- **Elastic** -- Start with a small pool and grow it automatically as the tenant creates more LoadBalancer Services.
+- **Static** -- Allocate a fixed pool of IPs at cluster creation. The allocation size does not change for the lifetime of the cluster.
+- **Elastic** -- Start with a small pool and grow or shrink based on observed demand. Growth fires when a tenant LB Service is stuck Pending without an IP. Shrink releases growth allocations whose IPs have no matching Service for a sustained grace period (10 minutes).
 
 Configure the mode in `ProviderConfig.spec.network.loadBalancer.allocationMode`.
+
+## Pool Capacity
+
+NetworkPool resources expose three capacity conditions: `CapacityWarning` (70% utilization), `CapacityCritical` (85%), and `CapacityExhausted` (95%). These conditions are always present on every NetworkPool and are queryable via `kubectl`, ArgoCD health checks, or any tool that reads standard Kubernetes conditions.
 
 ## See Also
 
