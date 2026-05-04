@@ -90,7 +90,9 @@ When a new TenantCluster is created with elastic IPAM, operators can expect:
 
 ### What a fresh tenant looks like
 
-On bootstrap, a fresh tenant cluster running the default addon set (Cilium, MetalLB, cert-manager, Longhorn, Traefik) has one LB Service: Traefik. This consumes 1 of the 2 initially allocated IPs. The second IP sits as idle headroom until a workload creates another LB Service.
+On bootstrap, a fresh tenant cluster running the default addon set (Cilium, MetalLB, cert-manager, Longhorn, Traefik) has one LB Service: Traefik. This consumes 1 of the initially allocated IPs.
+
+If Traefik failed to install during initial addon setup, the cluster reaches Ready phase but the `AddonsReady` condition is `False`. The controller retries the install during steady-state reconciliation. Until Traefik is installed, no platform LB Service exists on the tenant, and the allocated IPs sit unused. See [Troubleshooting: Addons](../troubleshooting/addons.md#platform-addon-install-failed) for diagnosis.
 
 ```bash
 # On a fresh tenant cluster
