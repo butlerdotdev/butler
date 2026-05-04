@@ -511,8 +511,8 @@ On each reconcile of a Ready cluster with elastic IPAM enabled:
 
 1. `reconcileElasticIPAM()` lists all LB IPAllocations for the tenant.
 2. It connects to the tenant cluster and builds a Service inventory: all Services of type LoadBalancer, their external IPs, and their age.
-3. If any Service has been Pending without an externalIP for longer than 30 seconds, growth fires.
-4. **Batch assessment**: The controller counts all Pending Services at once and creates enough growth allocations to cover all of them. If three Services are Pending, growth creates allocations for all three rather than handling one per reconcile cycle.
+3. If any Service has been Pending without an externalIP for longer than 30 seconds, growth fires — but only after accounting for in-flight supply. Growth allocations that are still Pending (awaiting fulfillment by the NetworkPool controller) or Allocated but not yet consumed by any Service (MetalLB propagation in progress) are subtracted from the demand count. This prevents redundant growth when a watch-triggered reconcile fires shortly after creating a growth allocation.
+4. **Batch assessment**: The controller counts all Pending Services at once, subtracts in-flight supply, and creates enough growth allocations to cover the remaining demand. If three Services are Pending and one growth allocation is already in flight, growth creates allocations for the remaining two.
 5. Each growth allocation is quota-checked (`totalAllocated + growthIncrement <= maxLoadBalancerIPs`) and capacity-checked against the pool.
 6. Growth allocations are labeled `allocation-role: growth` and named `{namespace}-{name}-lb-{N}`.
 
