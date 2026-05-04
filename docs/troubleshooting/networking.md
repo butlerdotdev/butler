@@ -80,7 +80,8 @@ kubectl logs -n butler-system -l app.kubernetes.io/name=butler-controller --tail
 1. **Not elastic mode** -- Growth only fires with `allocationMode: elastic`. Static mode allocates once at creation.
 2. **Quota reached** -- Total allocated IPs equal `maxLoadBalancerIPs`. Increase the quota or delete unused Services.
 3. **Service too new** -- The controller waits 30 seconds after Service creation before treating it as a demand signal. Wait and check again.
-4. **Tenant API unreachable** -- The controller skips elastic IPAM when it cannot connect to the tenant. Check tenant control plane health.
+4. **In-flight supply covers demand** -- If a growth allocation was recently created and is still Pending or Allocated but not yet consumed by a Service, the controller deducts it from the demand count. This is normal during MetalLB propagation (up to ~37 seconds). Check `kubectl get ipallocation -n butler-system -l butler.butlerlabs.dev/tenant=<cluster-name>` for recent growth allocations in Pending or Allocated phase.
+5. **Tenant API unreachable** -- The controller skips elastic IPAM when it cannot connect to the tenant. Check tenant control plane health.
 
 ## Console Not Loading
 
