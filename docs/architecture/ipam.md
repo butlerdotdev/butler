@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # IPAM Internals
 
-This document covers the implementation of Butler's IP Address Management subsystem: the bitmap allocator, controller interactions, elastic scaling algorithm, and garbage collection. For a user-facing introduction to IPAM concepts, see [Concepts: Networking](../concepts/networking.md).
+This document covers the implementation of Butler's IP Address Management subsystem: the bitmap allocator, controller interactions, demand-driven elastic allocation, and garbage collection. For a user-facing introduction to IPAM concepts, see [Concepts: Networking](../concepts/networking.md).
 
 The subsystem consists of three CRDs and four cooperating controllers:
 
@@ -31,7 +31,9 @@ flowchart TB
 Key design principles:
 
 - **Single allocator**: The NetworkPool controller is the sole writer of IPAllocation status. This eliminates race conditions without distributed locking.
+- **Demand-driven allocation**: Elastic growth fires when tenant LB Services are Pending without an IP. Shrink fires when allocated IPs have no matching Service for a sustained grace period. No speculative arithmetic.
 - **Best-fit allocation**: The bitmap allocator selects the smallest free block that satisfies each request, reducing fragmentation over the pool's lifetime.
+- **Management authoritative**: IPAllocation CRs on the management cluster are the desired state. MetalLB pools on tenants are projections. Drift is corrected on every sync.
 - **Three-layer cleanup**: TenantCluster deletion, IPAllocation finalizers, and orphan garbage collection ensure IP addresses are always returned to the pool.
 - **Cloud-native bypass**: Cloud providers skip the entire IPAM subsystem. When `spec.network.mode` is `cloud`, the TenantCluster controller returns early and the cloud provider's native LoadBalancer handles IP assignment.
 
@@ -89,6 +91,18 @@ status:
       status: "True"
       reason: Ready
       message: "1726/1774 IPs available (6 allocations)"
+    - type: CapacityWarning
+      status: "False"
+      reason: UtilizationBelowThreshold
+      message: "Pool utilization is 3% (48/1774 IPs)"
+    - type: CapacityCritical
+      status: "False"
+      reason: UtilizationBelowThreshold
+      message: "Pool utilization is 3% (48/1774 IPs)"
+    - type: CapacityExhausted
+      status: "False"
+      reason: UtilizationBelowThreshold
+      message: "Pool utilization is 3% (48/1774 IPs)"
 ```
 
 #### Spec Fields
@@ -115,7 +129,7 @@ status:
 | `status.allocationCount` | int32 | Number of active IPAllocations |
 | `status.fragmentationPercent` | int32 | Free space fragmentation (0-100) |
 | `status.largestFreeBlock` | int32 | Size of largest contiguous free block |
-| `status.conditions[]` | []Condition | Standard Kubernetes conditions |
+| `status.conditions[]` | []Condition | Standard Kubernetes conditions (see [Capacity Conditions](#capacity-conditions)) |
 | `status.observedGeneration` | int64 | Last observed generation |
 
 ### IPAllocation
@@ -137,6 +151,7 @@ metadata:
     butler.butlerlabs.dev/tenant: prod-cluster
     butler.butlerlabs.dev/network-pool: lab-pool
     butler.butlerlabs.dev/allocation-type: loadbalancer
+    butler.butlerlabs.dev/allocation-role: initial
 spec:
   poolRef:
     name: lab-pool
@@ -292,7 +307,7 @@ Four controllers cooperate to manage IP allocation:
 |------------|---------|----------------|
 | **NetworkPool** | `internal/controller/networkpool/` | Sole allocator. Processes Pending IPAllocations using best-fit bitmap. Computes pool status. Runs orphan GC. |
 | **IPAllocation** | `internal/controller/ipallocation/` | Thin lifecycle. Adds finalizer, sets initial Pending phase. On deletion: sets Released phase with timestamp, removes finalizer. |
-| **TenantCluster** | `internal/controller/tenantcluster/` | Creates IPAllocations during provisioning. Runs elastic IPAM on Ready clusters. Cleans up allocations on deletion. |
+| **TenantCluster** | `internal/controller/tenantcluster/` | Creates IPAllocations during provisioning. Runs demand-driven elastic IPAM on Ready clusters. Syncs MetalLB pools. Cleans up allocations on deletion. |
 | **ProviderConfig** | `internal/controller/providerconfig/` | Validates pool availability for IPAM mode. Estimates tenant capacity from available IPs. |
 
 ### Controller Interaction
@@ -331,6 +346,24 @@ flowchart TB
 
     TC3 -->|"deletes on TC deletion"| IPAllocation
     IPA3 -->|"on deletion"| IPAllocation
+```
+
+### Watch Relationships
+
+The TenantCluster controller watches IPAllocation resources in addition to its primary resources. When an IPAllocation transitions from Pending to Allocated, the watch triggers a TenantCluster reconcile within seconds, rather than waiting for the timer-based requeue.
+
+```mermaid
+flowchart LR
+    TC["TenantCluster Controller"] -->|"watches"| TCR["TenantCluster"]
+    TC -->|"watches"| NS["Namespace"]
+    TC -->|"watches"| SEC["Secret"]
+    TC -->|"watches"| RB["RoleBinding"]
+    TC -->|"watches"| IPAR["IPAllocation"]
+
+    NPC["NetworkPool Controller"] -->|"watches"| NPR["NetworkPool"]
+    NPC -->|"watches"| IPAR
+
+    IPAC["IPAllocation Controller"] -->|"watches"| IPAR
 ```
 
 ### Reconciliation Intervals
@@ -418,27 +451,27 @@ sequenceDiagram
 9. On success, the IPAllocation status is updated with the allocated range. On failure (pool exhausted), the phase is set to `Failed`.
 10. On the next TenantCluster reconcile, `reconcileIPAllocation()` sees the Allocated phase and returns `(true, nil)`. The controller then installs MetalLB on the tenant cluster with the allocated address range.
 
-### Elastic IPAM
+### Elastic IPAM (Demand-Driven)
 
-Elastic IPAM starts with a small initial allocation and automatically grows or shrinks based on actual LoadBalancer usage on the tenant cluster.
+Elastic IPAM starts with a small initial allocation and grows or shrinks based on observed LoadBalancer Service demand on the tenant cluster. Growth fires when a Service is stuck Pending without an IP. Shrink fires when allocated IPs have no matching Service for a sustained grace period.
 
 ```mermaid
 flowchart TB
     subgraph Init["Initial Allocation"]
         A1["TenantCluster created"]
-        A2["Allocate initialPoolSize IPs<br/>(default: 2)"]
+        A2["Allocate initialPoolSize IPs\n(default: 2, role: initial)"]
         A3["Install MetalLB with initial range"]
     end
 
     subgraph Monitor["Reconcile Loop (Ready clusters)"]
         B1["reconcileElasticIPAM()"]
-        B2["Count used LB Services<br/>on tenant cluster"]
-        B3{"availableIPs < 1?"}
+        B2["Build LB Service inventory\nfrom tenant cluster"]
+        B3{"Any Services Pending\nwithout externalIP\nfor > 30s?"}
         B4{"Under quota?"}
-        B5["Create growth allocation<br/>{ns}-{name}-lb-{N}<br/>size: growthIncrement"]
-        B6{"len(allocs) > 1 AND<br/>availableIPs > growthIncrement AND<br/>newest alloc age > 10min?"}
-        B7["Delete newest unused allocation"]
-        B8["updateMetalLBPool()<br/>Collect all allocated ranges<br/>Update MetalLB spec.addresses[]"]
+        B5["Create growth allocation\ncount = number of Pending Services\nrole: growth"]
+        B6{"Any growth allocations\nwith no matching Service\nfor > 10 min?"}
+        B7["Delete unused growth allocation"]
+        B8["Sync MetalLB pool\nwith all allocated ranges"]
     end
 
     A1 --> A2
@@ -465,43 +498,105 @@ spec:
     loadBalancer:
       allocationMode: elastic
       initialPoolSize: 2       # Start with 2 IPs
-      growthIncrement: 2       # Add 2 IPs each growth event
+      growthIncrement: 1       # Add 1 IP per growth event
     quotaPerTenant:
-      maxLoadBalancerIPs: 32   # Hard cap
+      maxLoadBalancerIPs: 8    # Hard cap
 ```
 
-**Growth logic** (runs on every Ready cluster reconcile):
+#### Demand-driven growth
 
-1. `reconcileElasticIPAM()` lists all LB IPAllocations for the tenant cluster.
-2. It connects to the tenant cluster and counts LoadBalancer Services with assigned IPs.
-3. `availableIPs = totalAllocated - usedIPs`.
-4. If `availableIPs < 1`:
-   - Check quota: `totalAllocated + growthIncrement <= maxLoadBalancerIPs`.
-   - Find a pool with `availableIPs >= growthIncrement`.
-   - Create a new IPAllocation named `{namespace}-{name}-lb-{N}` (where N is the allocation index).
-5. The NetworkPool controller fulfills the new allocation. On the next reconcile, `updateMetalLBPool()` collects all allocated ranges and updates the MetalLB `IPAddressPool.spec.addresses[]` with multiple ranges.
+Growth is triggered by observed demand on the tenant cluster, not by arithmetic projections.
 
-**Shrink logic** (runs in the same reconcile):
+On each reconcile of a Ready cluster with elastic IPAM enabled:
 
-1. If `len(allocs) > 1` (at least one growth allocation exists) AND `availableIPs > growthIncrement`:
-   - Find the newest allocation (by index, skipping index 0, the initial allocation).
-   - Check that it is `Allocated` and older than 10 minutes (cooldown to prevent thrashing).
-   - Delete it.
-2. `updateMetalLBPool()` updates MetalLB to reflect the reduced address set.
+1. `reconcileElasticIPAM()` lists all LB IPAllocations for the tenant.
+2. It connects to the tenant cluster and builds a Service inventory: all Services of type LoadBalancer, their external IPs, and their age.
+3. If any Service has been Pending without an externalIP for longer than 30 seconds, growth fires.
+4. **Batch assessment**: The controller counts all Pending Services at once and creates enough growth allocations to cover all of them. If three Services are Pending, growth creates allocations for all three rather than handling one per reconcile cycle.
+5. Each growth allocation is quota-checked (`totalAllocated + growthIncrement <= maxLoadBalancerIPs`) and capacity-checked against the pool.
+6. Growth allocations are labeled `allocation-role: growth` and named `{namespace}-{name}-lb-{N}`.
 
-**MetalLB multi-range support**: When elastic IPAM produces multiple allocations, the tenant cluster's MetalLB `IPAddressPool` contains multiple entries:
+The 30-second age threshold prevents the controller from racing with MetalLB. When a Service is first created, MetalLB may take a few seconds to assign an IP from the existing pool. The controller waits to confirm that MetalLB has no free IPs before triggering growth.
+
+**Measured timing**: In production, a Pending Service triggers a growth allocation within one reconcile cycle. End-to-end, from Service creation to IP assignment, measured at 37 seconds: the controller detects the Pending Service, creates the growth IPAllocation, the NetworkPool controller fulfills it, MetalLB is updated with the new range, and MetalLB assigns the IP.
+
+#### Demand-driven shrink
+
+Shrink releases growth allocations whose IPs are not in use by any tenant LB Service.
+
+1. For each growth allocation: check whether any IP in the allocation's range matches an externalIP on a tenant LB Service.
+2. If no Service is using any IP from the allocation, and the allocation has been in this unused state for longer than the 10-minute grace period, the allocation is deleted.
+3. `updateMetalLBPool()` then syncs the MetalLB pool on the tenant to reflect the reduced address set.
+
+Shrink protections:
+
+- **Initial allocations are never shrunk.** The allocation labeled `allocation-role: initial` is always preserved regardless of usage.
+- **Pinned allocations are never shrunk.** Any allocation with a `spec.pinnedRange` is preserved regardless of role label or Service usage.
+- **Grace period prevents thrashing.** A growth allocation must have no matching Service for 10 continuous minutes before it is eligible for release. Transient Service restarts do not trigger shrink.
+
+**Measured timing**: After test Services were deleted, growth allocations were released at the 9-minute mark (the allocations were 37 seconds old when the Services were deleted, so the total age crossed the 10-minute threshold at ~9m23s, caught on the next reconcile).
+
+#### MetalLB multi-range support
+
+When elastic IPAM produces multiple allocations, the tenant cluster's MetalLB `IPAddressPool` contains multiple entries:
 
 ```yaml
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
-  name: butler-lb-pool
+  name: default-pool
   namespace: metallb-system
 spec:
   addresses:
     - "10.40.1.0-10.40.1.1"    # Initial allocation
-    - "10.40.1.8-10.40.1.9"    # Growth allocation 1
-    - "10.40.2.4-10.40.2.5"    # Growth allocation 2
+    - "10.40.1.8-10.40.1.8"    # Growth allocation
+```
+
+The MetalLB sync uses server-side apply with the `butler-controller/ipam` field manager, which overwrites any manual edits to `default-pool` on the tenant cluster. Operators who need custom MetalLB pools should create additional IPAddressPool resources with different names.
+
+#### End-to-end demand-driven sequence
+
+```mermaid
+sequenceDiagram
+    participant Tenant as Tenant Cluster
+    participant TC as TenantCluster Controller
+    participant API as K8s API
+    participant NP as NetworkPool Controller
+
+    Note over Tenant: User creates LB Service
+    Tenant->>Tenant: Service Pending (no free IPs)
+
+    TC->>Tenant: reconcileElasticIPAM()
+    TC->>Tenant: buildLBServiceInventory()
+    Tenant-->>TC: 1 Service Pending > 30s
+
+    rect rgb(230, 245, 255)
+        Note over TC,NP: Growth
+        TC->>API: Create IPAllocation (growth, count=1)
+        API->>NP: Watch triggers reconcile
+        NP->>NP: Best-fit allocate
+        NP->>API: IPAllocation.status = Allocated
+    end
+
+    API->>TC: IPAllocation watch triggers reconcile
+    TC->>Tenant: updateMetalLBPool()<br/>SSA with new range
+    Tenant->>Tenant: MetalLB assigns IP to Service
+    Note over Tenant: Service has externalIP
+
+    Note over Tenant: User deletes LB Service
+    Tenant->>Tenant: Service gone, IP unused
+
+    TC->>Tenant: reconcileElasticIPAM()
+    TC->>Tenant: buildLBServiceInventory()
+    Tenant-->>TC: No Service using growth IP
+
+    Note over TC: Grace period: 10 minutes
+
+    rect rgb(255, 230, 230)
+        Note over TC,NP: Shrink (after grace period)
+        TC->>API: Delete growth IPAllocation
+        TC->>Tenant: updateMetalLBPool()<br/>SSA without old range
+    end
 ```
 
 ### Cloud Provider Bypass
@@ -514,6 +609,49 @@ When a ProviderConfig uses `mode: cloud` (the default), the entire IPAM subsyste
 - The cloud provider's native LoadBalancer implementation handles IP assignment.
 
 This means cloud-hosted Butler deployments (AWS, Azure, GCP) use the cloud's existing LoadBalancer controllers with no additional configuration.
+
+---
+
+## Design Evolution
+
+Butler's IPAM originally used speculative arithmetic to decide when to grow and shrink elastic allocations. The controller computed `availableIPs = totalAllocated - platformServiceCount - tenantServiceCount` and triggered growth when `availableIPs < 1` or shrink when `availableIPs >= growthIncrement`.
+
+This approach had a stable oscillation bug. With `growthIncrement=1` and all allocated IPs in use (e.g., 2 IPs allocated, 1 platform LB + 1 tenant LB), `availableIPs = 0` triggered growth. After the growth allocation was fulfilled, `availableIPs = 1`, which equaled `growthIncrement`, so shrink triggered. After shrink, `availableIPs = 0` again. This cycle repeated every reconcile interval (1-15 minutes depending on cluster age), creating continuous IPAllocation churn on 5 of 8 production tenant clusters.
+
+The fix was to replace speculative arithmetic with observed demand. Growth now fires only when a real LB Service is stuck Pending without an IP. Shrink fires only when allocated IPs have no matching Service for a sustained period. The speculative computation was removed entirely.
+
+The demand-driven approach eliminates the oscillation because there is no arithmetic equilibrium to destabilize. Growth requires a concrete signal (Pending Service), and shrink requires sustained absence of demand (no matching Service for 10 minutes). At rest, with no Pending Services and all allocated IPs either in use or within the grace period, the controller takes no action.
+
+For the full design rationale, see [ADR-016: Demand-Driven IPAM](https://github.com/butlerdotdev/butler-controller/blob/main/docs/architecture/ADR-016-demand-driven-ipam.md).
+
+---
+
+## Authority Model
+
+IPAllocation CRs on the management cluster are the desired state for IP ranges. MetalLB IPAddressPools on tenant clusters are projections of that state. If they disagree, the controller corrects the tenant to match management.
+
+```mermaid
+flowchart LR
+    subgraph MC["Management Cluster (Authoritative)"]
+        IPA1["IPAllocation\ninitial: .49-.50"]
+        IPA2["IPAllocation\ngrowth: .38"]
+    end
+
+    subgraph TC["Tenant Cluster (Derived)"]
+        MPool["MetalLB default-pool\naddresses:\n  - 10.92.90.38\n  - 10.92.90.49-10.92.90.50"]
+        SVC["LB Services\n(demand signal)"]
+    end
+
+    IPA1 -->|"projected via SSA"| MPool
+    IPA2 -->|"projected via SSA"| MPool
+    SVC -->|"demand triggers\ngrowth/shrink"| MC
+```
+
+**Management writes, tenant reads.** The management cluster decides which IPs to allocate, from which pool, subject to which quotas. The tenant cluster tells management "I need IPs" (via a Pending Service); management decides which IPs and tells the tenant (via MetalLB pool update).
+
+**Drift correction.** On every MetalLB sync, the controller computes the expected pool state from IPAllocations and applies it to the tenant via server-side apply with `Force: true`. If the tenant pool has been manually edited, the edit is overwritten. This happens automatically on every elastic IPAM reconcile.
+
+Operators who need custom MetalLB pools on a tenant should create additional IPAddressPool resources with different names. Do not modify `default-pool` directly; the controller will revert the change.
 
 ---
 
@@ -579,8 +717,8 @@ flowchart TB
     subgraph L1["Layer 1: TenantCluster Deletion"]
         L1A["handleDeletion()"]
         L1B["cleanupIPAllocations()"]
-        L1C["Delete by status refs<br/>(LBAllocationRef, IPAllocationRef)"]
-        L1D["Delete by labels<br/>(team + tenant)"]
+        L1C["Delete by status refs\n(LBAllocationRef, IPAllocationRef)"]
+        L1D["Delete by labels\n(team + tenant)"]
     end
 
     subgraph L2["Layer 2: IPAllocation Finalizer"]
@@ -667,6 +805,9 @@ All IPAllocations are labeled for efficient querying and cleanup:
 | `butler.butlerlabs.dev/tenant` | TenantCluster name (e.g., `prod-cluster`) | Filter allocations by cluster |
 | `butler.butlerlabs.dev/network-pool` | NetworkPool name (e.g., `lab-pool`) | Track which pool an allocation came from |
 | `butler.butlerlabs.dev/allocation-type` | `loadbalancer` or `nodes` | Distinguish allocation purpose |
+| `butler.butlerlabs.dev/allocation-role` | `initial` or `growth` | Distinguish the initial allocation from elastic growth allocations |
+
+The `allocation-role` label determines shrink eligibility. Only allocations labeled `growth` are candidates for demand-driven shrink. The `initial` allocation is always preserved. During migration from older controller versions, the controller infers the role from the allocation name: the allocation matching `{team}-{tenant}-lb` is labeled `initial`, allocations matching `{team}-{tenant}-lb-{N}` are labeled `growth`, and allocations with a `spec.pinnedRange` or unrecognized names are labeled `initial` for safety.
 
 The NetworkPool controller uses a field indexer on `spec.poolRef.name` for efficient listing of all IPAllocations referencing a given pool. This avoids full-list scans on every reconciliation.
 
@@ -701,19 +842,38 @@ The ProviderConfig controller estimates how many tenant clusters a provider can 
 estimatedTenants = availableIPs / (nodesPerTenant + lbPerTenant)
 ```
 
-This is exposed as the `butler_provider_config_estimated_tenants` Prometheus metric and in the ProviderConfig status, enabling capacity planning dashboards.
+This estimate is exposed in the ProviderConfig status, enabling capacity planning.
 
-### Pool Capacity Events
+### Capacity Conditions
+
+The NetworkPool controller maintains three always-present conditions on every NetworkPool. These conditions follow the standard `metav1.Condition` pattern and are queryable via `kubectl`, ArgoCD health checks, Flux kstatus, and butler-console.
+
+| Condition | Threshold | Meaning |
+|-----------|-----------|---------|
+| `CapacityWarning` | 70% utilization | Pool is filling. Plan expansion. |
+| `CapacityCritical` | 85% utilization | Pool is near capacity. Expansion is urgent. |
+| `CapacityExhausted` | 95% utilization | Pool is effectively full. New allocations will likely fail. |
+
+Each condition is `True` when utilization is at or above the threshold, `False` otherwise. The `lastTransitionTime` records when the condition last changed state, so operators can see how long a pool has been above a threshold.
+
+```bash
+# Check capacity conditions on all pools
+kubectl get networkpool -n butler-system -o custom-columns=\
+'NAME:.metadata.name,WARN:.status.conditions[?(@.type=="CapacityWarning")].status,CRIT:.status.conditions[?(@.type=="CapacityCritical")].status,EXHAUSTED:.status.conditions[?(@.type=="CapacityExhausted")].status'
+```
+
+### Capacity Events
 
 The NetworkPool controller emits Kubernetes events at utilization thresholds:
 
-| Utilization | Event Type | Event Reason |
-|-------------|------------|--------------|
-| >= 80% | Warning | `PoolCapacityWarning` |
-| >= 90% | Warning | `PoolCapacityDanger` |
-| 100% | Warning | `PoolExhausted` |
+| Utilization | Event Reason | Description |
+|-------------|-------------|-------------|
+| >= 70% | `PoolCapacityWarning` | Pool filling up |
+| >= 85% | `PoolCapacityCritical` | Pool near capacity |
+| >= 95% | `PoolCapacityExhausted` | Pool effectively full |
+| Drops below threshold | `PoolCapacityRecovered` | Utilization returned below a threshold |
 
-Monitor these events to trigger capacity expansion before pools are fully consumed:
+Events are rate-limited to one per 10 minutes per tier per pool. This prevents event spam on pools that sit above a threshold for extended periods.
 
 ```bash
 kubectl get events -n butler-system --field-selector reason=PoolCapacityWarning
@@ -723,82 +883,52 @@ kubectl get events -n butler-system --field-selector reason=PoolCapacityWarning
 
 ## Observability
 
-### Prometheus Metrics
+### CRD Status Fields and Conditions
 
-The NetworkPool controller exports the following metrics:
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `butler_network_pool_total_ips` | Gauge | `pool`, `namespace` | Total usable IPs (excludes reserved) |
-| `butler_network_pool_allocated_ips` | Gauge | `pool`, `namespace` | Currently allocated IPs |
-| `butler_network_pool_available_ips` | Gauge | `pool`, `namespace` | Available IPs |
-| `butler_network_pool_allocation_count` | Gauge | `pool`, `namespace` | Number of active IPAllocations |
-| `butler_network_pool_fragmentation_percent` | Gauge | `pool`, `namespace` | Free space fragmentation (0-100) |
-| `butler_network_pool_largest_free_block` | Gauge | `pool`, `namespace` | Largest contiguous free block |
-| `butler_ip_allocation_processed_total` | Counter | `pool`, `namespace`, `result` | Total allocations processed (`success` or `failed`) |
-
-### Example Alerting Rules
-
-```yaml
-groups:
-  - name: butler-ipam
-    rules:
-      - alert: NetworkPoolNearExhaustion
-        expr: |
-          butler_network_pool_available_ips / butler_network_pool_total_ips < 0.1
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "NetworkPool {{ $labels.pool }} is over 90% utilized"
-          description: >
-            Pool {{ $labels.pool }} in namespace {{ $labels.namespace }} has
-            {{ $value | humanizePercentage }} capacity remaining.
-
-      - alert: NetworkPoolExhausted
-        expr: butler_network_pool_available_ips == 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "NetworkPool {{ $labels.pool }} is fully exhausted"
-          description: >
-            No IPs available in pool {{ $labels.pool }}. New tenant clusters
-            cannot receive LoadBalancer allocations until capacity is freed.
-
-      - alert: NetworkPoolHighFragmentation
-        expr: butler_network_pool_fragmentation_percent > 50
-        for: 30m
-        labels:
-          severity: warning
-        annotations:
-          summary: "NetworkPool {{ $labels.pool }} has high fragmentation"
-          description: >
-            Pool fragmentation is {{ $value }}%. The largest contiguous free block
-            is {{ with printf "butler_network_pool_largest_free_block{pool='%s'}" $labels.pool | query }}{{ . | first | value }}{{ end }} IPs.
-```
-
-### Useful kubectl Commands
+The primary observability mechanism for IPAM is CRD status. Every pool's utilization, fragmentation, and capacity tier is available via `kubectl`:
 
 ```bash
-# View all pools and their capacity
+# Pool capacity overview
 kubectl get networkpool -n butler-system
 
-# View allocations for a specific tenant cluster
+# Detailed pool status
+kubectl describe networkpool -n butler-system <pool-name>
+
+# Allocations for a specific tenant
 kubectl get ipallocation -n butler-system \
   -l butler.butlerlabs.dev/tenant=my-cluster
 
-# View allocation details
-kubectl get ipallocation -n butler-system my-allocation -o yaml
+# All growth allocations across all tenants
+kubectl get ipallocation -n butler-system \
+  -l butler.butlerlabs.dev/allocation-role=growth
 
-# Check which pools a provider uses
-kubectl get providerconfig harvester-prod -n butler-system \
+# Allocation details
+kubectl get ipallocation -n butler-system <name> -o yaml
+
+# Which pools a provider uses
+kubectl get providerconfig <name> -n butler-system \
   -o jsonpath='{.spec.network.poolRefs[*].name}'
 
-# View pool events (capacity warnings, allocations, GC)
+# Pool events (capacity transitions, allocations, GC)
 kubectl get events -n butler-system \
   --field-selector involvedObject.kind=NetworkPool
+
+# Check MetalLB pool on a tenant cluster (for drift verification)
+kubectl --kubeconfig <tenant-kubeconfig> \
+  get ipaddresspool -n metallb-system default-pool -o yaml
 ```
+
+### Integration with External Monitoring
+
+Butler's IPAM signals through standard Kubernetes mechanisms: CRD status conditions, events, and status fields. Operators connect these to whatever monitoring stack they run:
+
+- **ArgoCD / Flux**: Capacity conditions (`CapacityWarning`, `CapacityCritical`, `CapacityExhausted`) are standard Kubernetes conditions. ArgoCD health checks and Flux kstatus interpret them natively.
+- **Event exporters**: Tools like kube-eventer or fluentd can capture capacity events for long-term storage beyond the API server's event TTL (default 1 hour).
+- **Custom scripts**: CRD status fields (`allocatedIPs`, `availableIPs`, `fragmentationPercent`) are machine-readable via `kubectl -o json` or client-go.
+
+:::note
+Butler core does not ship Prometheus metrics endpoints, PrometheusRules, ServiceMonitors, or Grafana dashboards for IPAM. An optional `butler-ipam-metrics` addon for operators using prometheus-operator is planned as future work.
+:::
 
 ---
 
@@ -909,7 +1039,7 @@ spec:
       maxLoadBalancerIPs: 32
 ```
 
-### Elastic IPAM for Cost-Efficient Clusters
+### Elastic IPAM with Demand-Driven Scaling
 
 Elastic mode for environments where most tenants need few LoadBalancer IPs but some may need many.
 
@@ -918,26 +1048,28 @@ Elastic mode for environments where most tenants need few LoadBalancer IPs but s
 apiVersion: butler.butlerlabs.dev/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: harvester-elastic
+  name: nutanix-elastic
   namespace: butler-system
 spec:
-  provider: harvester
+  provider: nutanix
   credentialsRef:
-    name: harvester-kubeconfig
+    name: nutanix-creds
   network:
     mode: ipam
     poolRefs:
-      - name: lab-pool
+      - name: underlay-pool
         priority: 0
     loadBalancer:
       allocationMode: elastic
-      initialPoolSize: 2       # Start small
-      growthIncrement: 2       # Grow by 2 when needed
+      initialPoolSize: 2       # Start with 2 IPs
+      growthIncrement: 1       # Grow by 1 when needed
     quotaPerTenant:
-      maxLoadBalancerIPs: 16   # Hard cap prevents runaway growth
+      maxLoadBalancerIPs: 8    # Hard cap prevents runaway growth
 ```
 
-With this configuration, a new TenantCluster starts with 2 LB IPs. When both are consumed by LoadBalancer Services, the next reconcile allocates 2 more. If usage drops (a Service is deleted) and the newest allocation is unused for 10+ minutes, it is reclaimed.
+With this configuration, a new TenantCluster starts with 2 LB IPs. In practice, Traefik (the platform ingress) uses 1 IP on bootstrap, leaving 1 IP as headroom. When a workload creates a LB Service that consumes the headroom IP and another Service goes Pending, the controller detects the Pending Service and allocates 1 more IP. If that Service is later deleted and its IP goes unused for 10 minutes, the growth allocation is released.
+
+A production deployment with 8 tenants on this configuration shows that 5 of 8 tenants use both initial IPs at 100% (running both Traefik and a workload LB Service), while 3 tenants run at 50% utilization (Traefik only, second IP idle).
 
 ### Pinned Range for Stable Addresses
 
@@ -968,6 +1100,8 @@ spec:
 
 The NetworkPool controller validates that the pinned range is within the pool, does not overlap reserved ranges, and does not conflict with existing allocations. If validation passes, the range is allocated exactly as requested.
 
+Pinned allocations are protected from demand-driven shrink regardless of their role label. Even if no tenant LB Service uses the IPs in a pinned range, the controller preserves the allocation.
+
 :::warning
 Pinned ranges bypass best-fit allocation. If the requested range is in the middle of a large free block, it splits the block into two smaller ones, increasing fragmentation.
 :::
@@ -989,15 +1123,15 @@ kubectl get ipallocation -n butler-system <name> -o yaml
 # Check if the referenced pool exists and has capacity
 kubectl get networkpool -n butler-system <pool-name>
 
-# Check NetworkPool controller logs
-kubectl logs -n butler-system -l app=butler-controller | grep networkpool
+# Check controller logs
+kubectl logs -n butler-system -l app.kubernetes.io/name=butler-controller --tail=50
 ```
 
 **Common causes**:
 
 1. **Pool exhausted**: `availableIPs` on the pool is less than the requested count. Expand the pool or add a secondary pool to the ProviderConfig.
 2. **Fragmentation**: Available IPs exist but no contiguous block is large enough. Check `fragmentationPercent` and `largestFreeBlock` in pool status.
-3. **NetworkPool controller not running**: Verify the butler-controller pod is healthy.
+3. **Controller not running**: Verify the butler-controller pod is healthy.
 
 ### IPAllocation in Failed State
 
@@ -1017,6 +1151,61 @@ kubectl get ipallocation -n butler-system <name> \
 3. **Invalid CIDR**: The pool's CIDR is malformed. Check pool validation conditions.
 
 Failed allocations are retried by both the NetworkPool controller (event-driven, treats Failed as Pending) and the IPAllocation controller (backstop, every 30 seconds).
+
+### Growth Allocation Not Firing
+
+**Symptoms**: A tenant LB Service is stuck Pending but no growth IPAllocation appears.
+
+**Diagnosis**:
+
+```bash
+# Confirm the Service is type LoadBalancer and has no externalIP
+kubectl --kubeconfig <tenant-kubeconfig> get service -n <namespace> <name> -o yaml
+
+# Check the TenantCluster's elastic IPAM configuration
+kubectl get providerconfig <name> -n butler-system \
+  -o jsonpath='{.spec.network.loadBalancer}'
+
+# Check allocation count against quota
+kubectl get ipallocation -n butler-system \
+  -l butler.butlerlabs.dev/tenant=<cluster-name> \
+  -o custom-columns='NAME:.metadata.name,COUNT:.spec.count,PHASE:.status.phase'
+
+kubectl get providerconfig <name> -n butler-system \
+  -o jsonpath='{.spec.network.quotaPerTenant.maxLoadBalancerIPs}'
+```
+
+**Common causes**:
+
+1. **Static allocation mode**: Elastic growth only runs when `loadBalancer.allocationMode` is `elastic`. Static mode allocates once at creation and does not grow.
+2. **Quota reached**: Total allocated IPs equal `maxLoadBalancerIPs`. The controller logs "quota would be exceeded" and skips growth.
+3. **Service too new**: The controller waits 30 seconds after Service creation before treating it as a growth signal, to avoid racing with MetalLB assignment from existing free IPs.
+4. **Tenant API unreachable**: If the controller cannot reach the tenant cluster's API server, it skips elastic IPAM for that tenant. Check controller logs for connection errors.
+5. **Reconcile interval**: For a mature cluster (>24h old), the reconcile interval is 15 minutes. The worst case for detecting a Pending Service is the full interval. The IPAllocation watch accelerates follow-up reconciles after a growth allocation is fulfilled.
+
+### Unexpected Shrink
+
+**Symptoms**: A growth IPAllocation was deleted and the MetalLB pool shrank.
+
+**Diagnosis**:
+
+```bash
+# Check controller logs for shrink events
+kubectl logs -n butler-system -l app.kubernetes.io/name=butler-controller --tail=100 \
+  | grep -i shrink
+
+# Check remaining allocations
+kubectl get ipallocation -n butler-system \
+  -l butler.butlerlabs.dev/tenant=<cluster-name> \
+  -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.butler\.butlerlabs\.dev/allocation-role,PHASE:.status.phase'
+```
+
+**Common causes**:
+
+1. **Service deleted**: The LB Service using the growth allocation's IP was deleted. After 10 minutes with no matching Service, the allocation is released. This is normal operation.
+2. **MetalLB assigned a different IP**: If MetalLB assigned an IP from a different allocation's range (e.g., from the initial allocation's headroom), the growth allocation's IP may appear unused even though a Service exists. The controller checks the specific IP range of each growth allocation against actual Service IPs.
+
+Shrink never touches the initial allocation or allocations with a `spec.pinnedRange`. If an unexpected shrink occurred, check whether the deleted allocation was labeled `growth` and lacked a pinned range.
 
 ### Orphaned Allocations
 
@@ -1043,38 +1232,37 @@ kubectl delete ipallocation -n butler-system \
 ```bash
 # Check active allocations
 kubectl get ipallocation -n butler-system \
-  -l butler.butlerlabs.dev/network-pool=<pool-name> \
-  --field-selector status.phase!=Released
+  -l butler.butlerlabs.dev/network-pool=<pool-name>
 
 # Delete the TenantClusters using this pool, or wait for their cleanup
 ```
 
-### MetalLB Not Receiving Updated Ranges (Elastic IPAM)
+### MetalLB Pool Drift
 
-**Symptoms**: New LoadBalancer Services on the tenant cluster are stuck in Pending despite available allocations.
+**Symptoms**: The MetalLB `default-pool` on a tenant cluster does not match the management-side IPAllocations.
 
-**Diagnosis**:
+The controller detects and corrects drift automatically. On every elastic IPAM reconcile, the controller computes the expected pool state from IPAllocations and applies it via server-side apply. Manual edits to `default-pool` are overwritten within one reconcile cycle.
+
+If drift persists, check:
 
 ```bash
-# Check the MetalLB IPAddressPool on the tenant cluster
-kubectl --kubeconfig <tenant-kubeconfig> get ipaddresspool -n metallb-system -o yaml
-
-# Compare with the allocated ranges
+# Compare management-side allocations with tenant-side pool
 kubectl get ipallocation -n butler-system \
   -l butler.butlerlabs.dev/tenant=<cluster-name>,butler.butlerlabs.dev/allocation-type=loadbalancer
+
+kubectl --kubeconfig <tenant-kubeconfig> \
+  get ipaddresspool -n metallb-system default-pool -o jsonpath='{.spec.addresses}'
 ```
 
-**Common causes**:
-
-1. **updateMetalLBPool() failed**: Check butler-controller logs for "failed to update MetalLB pool" errors.
-2. **Tenant cluster unreachable**: The controller could not connect to the tenant cluster API. Verify the tenant control plane is healthy.
-3. **Growth allocation still Pending**: The NetworkPool controller has not yet fulfilled the growth allocation. Check the allocation phase.
+If the ranges do not match, the controller will correct it on the next reconcile. If the tenant API server is unreachable, the sync is retried with exponential backoff on subsequent reconciles.
 
 ---
 
 ## See Also
 
 - [Concepts: Networking](../concepts/networking.md) -- IPAM modes, NetworkPool overview, elastic scaling
+- [Operations: IPAM](../operations/ipam.md) -- Capacity planning, bootstrap timing, operational procedures
 - [Tenant Lifecycle](tenant-lifecycle.md) -- How tenant clusters are provisioned and managed
 - [Addon System](addon-system.md) -- MetalLB installation as a platform addon
 - [Bootstrap Flow](bootstrap-flow.md) -- Management cluster MetalLB setup
+- [ADR-016: Demand-Driven IPAM](https://github.com/butlerdotdev/butler-controller/blob/main/docs/architecture/ADR-016-demand-driven-ipam.md) -- Design rationale
