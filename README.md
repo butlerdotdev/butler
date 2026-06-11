@@ -30,11 +30,15 @@
 </p>
 
 <p align="center">
-  <a href="assets/demo.mp4"><img src="assets/demo.gif" alt="Butler running on a laptop: one command bootstraps the platform, then a tenant Kubernetes cluster is created from the console and its nodes come up Ready" width="760"/></a>
+  <img src="assets/demo.gif" alt="Butler running on a laptop: one command bootstraps the platform, then a tenant Kubernetes cluster is created from the console and its nodes come up Ready" width="760"/>
 </p>
 
 <p align="center">
-  <em>One command bootstraps the whole platform on your laptop, then you create a tenant cluster from the console and watch its nodes come up Ready. <a href="assets/demo.mp4">Watch the full demo.</a></em>
+  <em>One command bootstraps the whole platform on your laptop, then you create a tenant cluster from the console and watch its nodes come up Ready.</em>
+</p>
+
+<p align="center">
+  <video src="https://github.com/user-attachments/assets/4f9de6f5-ba5d-486e-b731-bb8c679af105" controls width="760"></video>
 </p>
 
 ---
