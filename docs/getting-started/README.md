@@ -7,13 +7,15 @@ sidebar_position: 1
 
 Set up a Butler management cluster on your infrastructure, then create your first tenant cluster.
 
+> **Just want to try it?** [Run the full platform on your laptop](./local.md) with nothing but Docker -- no hypervisor or cloud account required. It is the fastest way to see what Butler does end to end.
+
 ## Prerequisites
 
 | Requirement | Description |
 |-------------|-------------|
 | Docker | Runs the temporary KIND bootstrap cluster |
 | kubectl | Kubernetes CLI (1.28+) |
-| Infrastructure | One of: Harvester, Nutanix, AWS, GCP, or Azure |
+| Infrastructure | One of: Harvester, Nutanix, AWS, GCP, or Azure (or [try it locally](./local.md) with just Docker) |
 
 ## Install the CLI
 
