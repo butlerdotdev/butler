@@ -33,6 +33,10 @@ jobs:
             --verbose
             --no-progress
             --root-dir docs
+            --max-retries 5
+            --retry-wait-time 3
+            --timeout 30
+            --user-agent "Mozilla/5.0 (compatible; lychee link checker)"
             --scheme https
             --scheme http
             --exclude "^https://wiki.linuxfoundation.org/dco"
