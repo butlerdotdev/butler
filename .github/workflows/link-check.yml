@@ -1,15 +1,12 @@
 name: Link Check
 
+# External link checking is inherently flaky: checking ~160 links against
+# dozens of third-party sites means some site intermittently resets or refuses
+# the connection from a CI runner on any given run. Gating every push/PR on that
+# produces red noise unrelated to the change. So this runs on a weekly schedule
+# (to catch real link rot, reviewed by a maintainer) and on demand. The
+# deterministic markdownlint workflow remains the per-commit docs gate.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '**.md'
-      - '.github/workflows/link-check.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - '**.md'
   schedule:
     # Run weekly on Sunday at midnight
     - cron: '0 0 * * 0'
