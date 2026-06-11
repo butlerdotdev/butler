@@ -218,7 +218,7 @@ butleradm bootstrap local              # full platform on KIND, a few minutes
 # open http://localhost:8080 and sign in with the printed admin credentials
 ```
 
-You get a real management cluster, the web console, and a tenant Kubernetes cluster whose worker runs as a local container via the Cluster API Docker provider. Everything above the node layer is the same software you run in production. See the [Try Butler on Your Laptop](docs/getting-started/local.md) guide for the full walkthrough.
+You get a real management cluster, the web console, and a tenant Kubernetes cluster whose worker runs as a local container via the Cluster API Docker provider. Everything above the node layer is the same software you run in production. See the [Try Butler on Your Laptop](docs/getting-started/local.mdx) guide for the full walkthrough.
 
 For real infrastructure, continue below.
 
@@ -226,7 +226,7 @@ For real infrastructure, continue below.
 
 - Docker (for bootstrap)
 - kubectl
-- Infrastructure access (Harvester, Nutanix, or other supported provider) -- or just Docker for the [local path](docs/getting-started/local.md)
+- Infrastructure access (Harvester, Nutanix, or other supported provider) -- or just Docker for the [local path](docs/getting-started/local.mdx)
 
 ### Install CLI
 
