@@ -29,6 +29,14 @@
   <a href="https://butlerlabs.dev">Website</a>
 </p>
 
+<p align="center">
+  <a href="assets/demo.mp4"><img src="assets/demo.gif" alt="Butler running on a laptop: one command bootstraps the platform, then a tenant Kubernetes cluster is created from the console and its nodes come up Ready" width="760"/></a>
+</p>
+
+<p align="center">
+  <em>One command bootstraps the whole platform on your laptop, then you create a tenant cluster from the console and watch its nodes come up Ready. <a href="assets/demo.mp4">Watch the full demo.</a></em>
+</p>
+
 ---
 
 ## What is Butler?
@@ -200,11 +208,25 @@ flowchart TB
 
 ## Quick Start
 
+### Try Butler on your laptop
+
+Want to see Butler run before standing up real infrastructure? Bootstrap the entire platform on your laptop with nothing but Docker -- no hypervisor, no cloud account.
+
+```bash
+brew install butlerdotdev/tap/butler   # or grab a release binary
+butleradm bootstrap local              # full platform on KIND, a few minutes
+# open http://localhost:8080 and sign in with the printed admin credentials
+```
+
+You get a real management cluster, the web console, and a tenant Kubernetes cluster whose worker runs as a local container via the Cluster API Docker provider. Everything above the node layer is the same software you run in production. See the [Try Butler on Your Laptop](docs/getting-started/local.md) guide for the full walkthrough.
+
+For real infrastructure, continue below.
+
 ### Prerequisites
 
 - Docker (for bootstrap)
 - kubectl
-- Infrastructure access (Harvester, Nutanix, or other supported provider)
+- Infrastructure access (Harvester, Nutanix, or other supported provider) -- or just Docker for the [local path](docs/getting-started/local.md)
 
 ### Install CLI
 

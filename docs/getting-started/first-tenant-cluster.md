@@ -1,6 +1,6 @@
 ---
 title: Create Your First Tenant Cluster
-sidebar_position: 8
+sidebar_position: 9
 ---
 
 # Create Your First Tenant Cluster
