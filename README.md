@@ -112,7 +112,7 @@ Built by [Butler Labs](https://butlerlabs.dev) to solve the problem we kept seei
 | **AWS** | Cloud | In Progress | - |
 | **Azure** | Cloud | In Progress | - |
 
-See [Provider Guides](docs/providers/) for detailed setup instructions.
+See [Provider Guides](docs/getting-started/) for detailed setup instructions.
 
 ---
 
@@ -619,10 +619,10 @@ Butler is composed of multiple repositories, each with a specific responsibility
 
 | Guide | What you'll learn |
 |-------|-------------------|
-| [Overview & Concepts](docs/overview/) | What Butler is, how it works, core terminology |
+| [Overview & Concepts](docs/concepts/) | What Butler is, how it works, core terminology |
 | [Architecture](docs/architecture/) | System design, data flows, component interactions |
 | [Getting Started](docs/getting-started/) | Installation, bootstrap, first tenant cluster |
-| [Provider Guides](docs/providers/) | Infrastructure-specific setup (Harvester, Nutanix) |
+| [Provider Guides](docs/getting-started/) | Infrastructure-specific setup (Harvester, Nutanix) |
 | [Operations](docs/operations/) | Upgrades, backup/restore, monitoring |
 | [Steward Docs](https://docs.butlerlabs.dev/steward) | Hosted control plane operator |
 | [Contributing](docs/contributing/) | Development setup, PR process |

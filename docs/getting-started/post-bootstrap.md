@@ -165,7 +165,7 @@ server:
 
 Apply with `helm upgrade` (or let Flux reconcile).
 
-#### `BUTLER_TRUST_PROXY_HEADERS` chart gap
+### `BUTLER_TRUST_PROXY_HEADERS` chart gap
 
 The third env var you want set is `BUTLER_TRUST_PROXY_HEADERS=true`, which tells the server to honor `X-Forwarded-Proto` and `X-Forwarded-Host` from the ingress. Without it, `https` flows show up as `http` in emitted URLs. As of `butler-console` chart 0.4.1, this env var is not yet exposed through chart values; until the chart catches up, set it via `kubectl set env`:
 

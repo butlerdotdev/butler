@@ -5,7 +5,7 @@ Butler is a Kubernetes-as-a-Service platform that provisions and manages tenant 
 ## Project
 
 - **[Contributing](CONTRIBUTING.md)** — How to contribute to Butler
-- **[Governance](GOVERNANCE.md)** — Project governance model
+- **[Governance](governance/GOVERNANCE.md)** — Project governance model
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** — Community standards
 - **[DCO](DCO.md)** — Developer Certificate of Origin
 
