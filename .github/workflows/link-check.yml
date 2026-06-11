@@ -23,16 +23,29 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Link Checker
+        # Scope: external (http/https) links plus Docusaurus root-relative links
+        # (/concepts/..., resolved against docs/ via --root-dir). Relative file
+        # links are deferred to Docusaurus's own onBrokenLinks check. Excludes
+        # cover private/internal repos that 404 anonymously and bot-blocked hosts.
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
             --verbose
             --no-progress
+            --root-dir docs
+            --scheme https
+            --scheme http
+            --exclude "^https://wiki.linuxfoundation.org/dco"
             --exclude "^https://github.com/butlerdotdev/butler-provider-proxmox"
             --exclude "^https://github.com/butlerdotdev/butler-controller"
             --exclude "^https://github.com/butlerdotdev/butler-provider-nutanix"
+            --exclude "^https://github.com/butlerdotdev/butler-provider-azure"
+            --exclude "^https://github.com/butlerdotdev/butler-provider-gcp"
+            --exclude "^https://github.com/butlerdotdev/butler-image-factory"
+            --exclude "^https://github.com/butlerdotdev/butlerlabs-docs"
             --exclude "^https://github.com/butlerdotdev/butler/discussions"
             --exclude "^https://github.com/butlerdotdev/butler/tree/main/design/proposals"
+            --exclude "^https://github.com/user-attachments/"
             --exclude "^https://opendocs.nutanix.com/capx/"
             --exclude "networking.md$"
             --exclude "security-model.md$"
