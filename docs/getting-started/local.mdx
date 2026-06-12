@@ -84,22 +84,22 @@ Open `http://localhost:8080` in your browser and sign in with the printed creden
 
 ## 4. Create a Tenant Cluster
 
-Create a Team and a TenantCluster exactly as described in [Create Your First Tenant Cluster](./first-tenant-cluster.md), from either the console or the CLI. Two things are specific to the local environment:
+The local bootstrap runs in Optional multi-tenancy mode, so you can create a TenantCluster directly in the default `butler-tenants` namespace, no Team required. (For the full multi-team flow, see [Create Your First Tenant Cluster](./first-tenant-cluster.md).) Two things are specific to the local environment:
 
-- Set `providerConfigRef.name` to `butler-local-provider` (the credential-less provider config the local bootstrap creates for you).
+- Use the `butler-local-provider` provider config (the credential-less one the local bootstrap creates for you).
 - A single worker is plenty. The node comes up as a local container.
 
 From the CLI:
 
 ```bash
-butlerctl cluster create toy --namespace <team-namespace> --workers 1 --k8s-version v1.31.0
+butlerctl cluster create toy --provider butler-local-provider --workers 1
 ```
 
 Watch it reach `Ready`:
 
 ```bash
 export KUBECONFIG=~/.butler/butler-local-kubeconfig
-kubectl get tenantcluster toy -n <team-namespace> -w
+kubectl get tenantcluster toy -n butler-tenants -w
 ```
 
 The tenant transitions `Pending` -> `Provisioning` -> `Installing` -> `Ready`, typically in a couple of minutes.
@@ -116,13 +116,13 @@ kubectl get nodes
 Then pull the tenant's kubeconfig and talk to its control plane:
 
 ```bash
-butlerctl cluster kubeconfig toy -n <team-namespace> > toy.yaml
+butlerctl cluster kubeconfig toy > toy.yaml
 kubectl --kubeconfig toy.yaml get nodes
 ```
 
 ```
 NAME                      STATUS   ROLES    AGE   VERSION
-toy-workers-xxxxx-xxxxx   Ready    <none>   75s   v1.31.0
+toy-workers-xxxxx-xxxxx   Ready    <none>   75s   v1.30.2
 ```
 
 A real Ready node, running on your laptop, in a tenant Kubernetes cluster managed by Butler.
