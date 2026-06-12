@@ -46,6 +46,14 @@ Allocate the resources in Docker Desktop (Settings -> Resources) or Rancher Desk
 brew install butlerdotdev/tap/butler
 ```
 
+On macOS the binaries are not notarized yet, so Gatekeeper quarantines them on install and they will not run until you clear the flag once (after each install or upgrade):
+
+```bash
+xattr -rd com.apple.quarantine "$(brew --prefix)/Caskroom/butler"
+```
+
+The Direct Download option below is not quarantined, if you prefer to skip this step.
+
 ### Direct Download (macOS / Linux)
 
 ```bash
