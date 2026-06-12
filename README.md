@@ -218,6 +218,8 @@ Want to see Butler run before standing up real infrastructure? Bootstrap the ent
 
 ```bash
 brew install butlerdotdev/tap/butler   # or grab a release binary
+# macOS only: the binaries are not notarized yet, so clear Gatekeeper's quarantine flag
+xattr -rd com.apple.quarantine "$(brew --prefix)/Caskroom/butler" 2>/dev/null || true
 butleradm bootstrap local              # full platform on KIND, a few minutes
 # open http://localhost:8080 and sign in with the printed admin credentials
 ```
@@ -240,6 +242,14 @@ For real infrastructure, continue below.
 ```bash
 brew install butlerdotdev/tap/butler
 ```
+
+On macOS, the binaries are not notarized yet, so Gatekeeper quarantines them on install and they will not run until you clear the flag (one time, after install or upgrade):
+
+```bash
+xattr -rd com.apple.quarantine "$(brew --prefix)/Caskroom/butler"
+```
+
+(The Direct Download option below is not quarantined, if you prefer to avoid this.)
 
 </details>
 
